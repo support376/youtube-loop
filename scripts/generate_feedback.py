@@ -1,7 +1,7 @@
 """피드백 생성 스크립트.
 
 매주 월요일 오전 9:30 실행.
-최근 2주 성과 데이터를 기반으로 기획용 피드백을 생성.
+2단계: 1) 구조화 JSON 생성 2) PD용 텍스트 생성
 """
 
 import sys
@@ -16,7 +16,6 @@ from lib.claude_client import generate
 
 
 def fetch_recent_data(days=14):
-    """최근 N일간 영상 + 통계 데이터."""
     sb = get_client()
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
@@ -48,10 +47,8 @@ def fetch_recent_data(days=14):
     return videos, stats
 
 
-def build_prompt(videos, stats):
-    """피드백 생성 프롬프트."""
+def build_data(videos, stats):
     stats_map = {s["video_id"]: s for s in stats}
-
     data = []
     for v in videos:
         s = stats_map.get(v["id"], {})
@@ -60,49 +57,34 @@ def build_prompt(videos, stats):
             "type": v["video_type"],
             "views": s.get("views", 0),
             "likes": s.get("likes", 0),
-            "comments": s.get("comments", 0),
         })
     data.sort(key=lambda x: x["views"], reverse=True)
-
-    return f"""아래는 '양홍수 변호사' 유튜브 채널의 최근 2주 영상 성과입니다.
-
-{json.dumps(data, ensure_ascii=False, indent=2)}
-
-이 데이터를 분석해서 PD가 코워크(기획 회의)에 바로 복붙할 수 있는 피드백을 작성해주세요.
-
-형식:
-```
-[최근 2주 성과 분석 기반 추천]
-
-잘 된 주제: (구체적 법률 주제 나열)
-잘 된 제목 패턴: (어떤 패턴이 효과적이었는지)
-부진한 주제: (있으면)
-
-[다음 기획 추천]
-- 추천 1: 구체적 주제 + 제목 예시
-- 추천 2: 구체적 주제 + 제목 예시
-- 추천 3: 구체적 주제 + 제목 예시
-```
-
-한국어로, 간결하고 실무적으로 작성. 이모지 사용 OK."""
+    return data
 
 
-def extract_keywords(report_text, videos, stats):
-    """리포트에서 키워드 추출 (간단 버전)."""
-    stats_map = {s["video_id"]: s for s in stats}
-    sorted_videos = sorted(videos, key=lambda v: stats_map.get(v["id"], {}).get("views", 0), reverse=True)
-
-    boost = []
-    avoid = []
-    mid = len(sorted_videos) // 2
-
-    # 상위 절반에서 자주 나오는 키워드
-    for v in sorted_videos[:max(mid, 1)]:
-        for tag in (v.get("tags") or []):
-            if tag not in boost:
-                boost.append(tag)
-
-    return boost[:10], avoid[:5]
+def parse_json(text):
+    text = text.strip()
+    if "```" in text:
+        for part in text.split("```"):
+            part = part.strip().removeprefix("json").strip()
+            if part.startswith("{"):
+                text = part
+                break
+    # 첫 번째 완전한 JSON 객체만 추출 (중괄호 매칭)
+    start = text.find("{")
+    if start < 0:
+        return json.loads(text)
+    depth = 0
+    end = start
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    return json.loads(text[start:end])
 
 
 def main():
@@ -114,26 +96,82 @@ def main():
         print("[feedback] 데이터 없음. 종료.")
         return
 
-    prompt = build_prompt(videos, stats)
+    data = build_data(videos, stats)
+    data_str = json.dumps(data, ensure_ascii=False, indent=2)
 
-    system = "당신은 유튜브 채널 기획 어드바이저입니다. 성과 데이터를 기반으로 PD에게 다음 기획 방향을 제안합니다. 실무적이고 구체적인 피드백을 제공합니다."
+    # ── 1단계: 구조화 JSON (짧은 프롬프트 + 압축 데이터) ──
+    # 데이터를 제목+조회수만 압축
+    compact = [{"title": d["title"], "views": d["views"]} for d in data]
+    compact_str = json.dumps(compact, ensure_ascii=False)
 
-    print("[feedback] Claude API 호출 중...")
-    content_md = generate(system, prompt, max_tokens=1024)
-    print(f"[feedback] 피드백 생성 완료 ({len(content_md)}자)")
+    json_prompt = (
+        '분석 후 JSON으로만 응답. 줄바꿈 없이 한 줄로.\n\n'
+        '{"keywords_boost":["주제3~6개"],"keywords_avoid":["부진주제1~3개"],'
+        '"title_patterns":{"질문형":["예시2개"],"공분형":["예시2개"],"반전형":["예시2개"]},'
+        '"principles":["원칙3~5개"],"top_formula":"공식1줄",'
+        '"avoid_reasons":["이유1줄씩"],'
+        '"recommendations":[{"title":"주제","desc":"설명","example":"제목예시"}]}\n\n'
+        '데이터: ' + compact_str
+    )
 
-    boost, avoid = extract_keywords(content_md, videos, stats)
+    system_json = "JSON만 출력. 다른 텍스트 금지."
 
+    print("[feedback] 1단계: 구조화 JSON 생성...")
+    raw_json = generate(system_json, json_prompt, max_tokens=1500)
+
+    try:
+        parsed = parse_json(raw_json)
+        print("[feedback] JSON 파싱 성공!")
+    except Exception as e:
+        print(f"[feedback] JSON 파싱 실패: {e}")
+        parsed = {}
+
+    boost = list(dict.fromkeys(parsed.get("keywords_boost", [])))
+    avoid = list(dict.fromkeys(parsed.get("keywords_avoid", [])))
+    title_patterns = parsed.get("title_patterns", {})
+    for cat in list(title_patterns.keys()):
+        if isinstance(title_patterns[cat], list):
+            title_patterns[cat] = list(dict.fromkeys(title_patterns[cat]))
+
+    # 메타 정보 저장
+    title_patterns["_top_formula"] = parsed.get("top_formula", "")
+    title_patterns["_avoid_reasons"] = parsed.get("avoid_reasons", [])
+    title_patterns["_principles"] = parsed.get("principles", [])
+    title_patterns["_recommendations"] = parsed.get("recommendations", [])
+    title_patterns["_generated_at"] = datetime.now(timezone.utc).isoformat()
+
+    # ── 2단계: PD용 텍스트 ──
+    text_prompt = f"""아래는 유튜브 채널 '양홍수 변호사'의 최근 2주 영상 성과입니다.
+
+{data_str}
+
+PD가 기획 회의에서 참고할 피드백을 작성해주세요.
+코드블록 없이, 간결하게.
+잘 된 주제, 부진한 주제, 제목 패턴, 다음 기획 추천 3건 포함."""
+
+    system_text = "유튜브 채널 기획 어드바이저. PD에게 실무적이고 구체적인 피드백을 제공합니다."
+
+    print("[feedback] 2단계: PD용 텍스트 생성...")
+    content_md = generate(system_text, text_prompt, max_tokens=1024)
+    # 코드블록 잔재물 제거
+    content_md = content_md.replace("```", "").strip()
+
+    # ── 저장 ──
     sb = get_client()
     sb.table("feedback").insert({
         "period": "weekly",
         "content_md": content_md,
         "keywords_boost": boost,
         "keywords_avoid": avoid,
-        "title_patterns": {"generated_at": datetime.now(timezone.utc).isoformat()},
+        "title_patterns": title_patterns,
     }).execute()
 
-    print("[feedback] 저장 완료!")
+    print(f"[feedback] 저장 완료!")
+    print(f"  boost: {boost}")
+    print(f"  avoid: {avoid}")
+    print(f"  patterns: {[k for k in title_patterns if not k.startswith('_')]}")
+    print(f"  principles: {len(parsed.get('principles', []))}개")
+    print(f"  formula: {parsed.get('top_formula', '')}")
 
 
 if __name__ == "__main__":

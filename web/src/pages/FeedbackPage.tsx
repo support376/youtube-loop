@@ -1,78 +1,16 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, Target, Ban, FileText, Lightbulb, ChevronRight } from 'lucide-react'
+import { Copy, Check, ChevronRight, Lightbulb } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Feedback } from '../hooks/useSupabase'
 
-// ─── 피드백 파싱 ───
-
-function cleanMd(raw: string): string {
-  return raw.replace(/^```\s*/gm, '').replace(/```\s*$/gm, '').replace(/^---$/gm, '').trim()
+interface TitlePatterns {
+  [key: string]: any
+  _top_formula?: string
+  _avoid_reasons?: string[]
+  _principles?: string[]
+  _recommendations?: { title: string; desc: string; example: string }[]
 }
-
-function extractTitlePatterns(content: string): string[] {
-  const patterns: string[] = []
-  const lines = content.split('\n')
-  for (const line of lines) {
-    // "~하면 무죄인가요?" 같은 따옴표 패턴
-    const quotes = line.match(/"([^"]+)"/g)
-    if (quotes) {
-      for (const q of quotes) patterns.push(q.replace(/"/g, ''))
-    }
-    // ❓ / 😤 / 🔍 패턴 라인
-    const emoji = line.match(/^[-*]\s*(❓|😤|🔍|✅|📝)\s*(.+)/)
-    if (emoji) patterns.push(emoji[2].split('→')[0].trim())
-  }
-  return [...new Set(patterns)].slice(0, 6)
-}
-
-function extractPrinciples(content: string): string[] {
-  const principles: string[] = []
-  const lines = content.split('\n')
-  let inMemo = false
-  for (const line of lines) {
-    if (/💡\s*운영|핵심|원칙|메모/.test(line)) { inMemo = true; continue }
-    if (inMemo && /^\[/.test(line.trim())) break
-    if (inMemo && line.trim().startsWith('-')) {
-      principles.push(line.trim().replace(/^-\s*/, ''))
-    }
-  }
-  // 폴백: 🔥/💡 있는 줄 추출
-  if (!principles.length) {
-    for (const line of lines) {
-      if (/^[-*]\s*(🔥|💡|⚠️)/.test(line.trim())) {
-        principles.push(line.trim().replace(/^[-*]\s*/, ''))
-      }
-    }
-  }
-  return principles.slice(0, 4)
-}
-
-function extractRecommendations(content: string): { title: string; desc: string; example: string }[] {
-  const recs: { title: string; desc: string; example: string }[] = []
-  const lines = content.split('\n')
-  let current: { title: string; desc: string; example: string } | null = null
-
-  for (const line of lines) {
-    const recMatch = line.match(/^-\s*추천\s*\d+[:：]\s*(.+)/)
-    if (recMatch) {
-      if (current) recs.push(current)
-      current = { title: recMatch[1], desc: '', example: '' }
-      continue
-    }
-    if (current) {
-      if (/^→\s*제목 예시|^→\s*"/.test(line.trim())) {
-        current.example = line.trim().replace(/^→\s*제목 예시[:：]?\s*/, '').replace(/^→\s*/, '')
-      } else if (/^→/.test(line.trim())) {
-        current.desc += (current.desc ? ' ' : '') + line.trim().replace(/^→\s*/, '')
-      }
-    }
-  }
-  if (current) recs.push(current)
-  return recs.slice(0, 3)
-}
-
-// ─── 메인 ───
 
 export default function FeedbackPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
@@ -92,19 +30,26 @@ export default function FeedbackPage() {
 
   if (loading) return <LoadingSkeleton />
   if (!feedbacks.length) {
-    return <div className="text-center py-20 text-[var(--text-secondary)]">아직 피드백이 없습니다. 매주 월요일 오전 9:30에 자동 생성됩니다.</div>
+    return <div className="text-center py-20 text-[var(--text-secondary)]">아직 피드백이 없습니다.</div>
   }
 
   const latest = feedbacks[0]
-  const content = cleanMd(latest.content_md || '')
   const boost = latest.keywords_boost || []
   const avoid = latest.keywords_avoid || []
-  const titlePatterns = extractTitlePatterns(content)
-  const principles = extractPrinciples(content)
-  const recommendations = extractRecommendations(content)
+  const tp = (latest.title_patterns || {}) as TitlePatterns
+  const patternCategories = Object.entries(tp).filter(([k]) => !k.startsWith('_')) as [string, string[]][]
+  const formula = tp._top_formula || ''
+  const avoidReasons = tp._avoid_reasons || []
+  const principles = tp._principles || []
+  const recommendations = tp._recommendations || []
+  const contentMd = cleanMd(latest.content_md || '')
   const updatedAt = fmtDate(latest.created_at)
 
   const handleCopy = async () => {
+    const patternLines = patternCategories
+      .map(([cat, examples]) => `- ${cat}: ${(examples || []).join(' / ')}`)
+      .join('\n')
+
     const text = `# YouTube Loop 성과 피드백 (매주 갱신)
 # 마지막 업데이트: ${updatedAt}
 
@@ -115,7 +60,7 @@ ${boost.length ? boost.map(k => `- ${k}`).join('\n') : '- 없음'}
 ${avoid.length ? avoid.map(k => `- ${k}`).join('\n') : '- 없음'}
 
 ## 잘 되는 제목 공식
-${titlePatterns.length ? titlePatterns.map(p => `- ${p}`).join('\n') : '- 없음'}
+${patternLines || '- 없음'}
 
 ## 운영 원칙
 ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
@@ -142,61 +87,113 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
         </button>
       </div>
 
-      {/* ① 핵심 규칙 카드 4개 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <RuleCard
-          icon={<Target size={20} className="text-[var(--green)]" />}
-          title="우선 주제"
-          color="green"
-          items={boost}
-          emptyText="키워드 없음"
-          delay={0}
-        />
-        <RuleCard
-          icon={<Ban size={20} className="text-[var(--accent)]" />}
-          title="회피 주제"
-          color="red"
-          items={avoid}
-          emptyText="키워드 없음"
-          delay={0.1}
-        />
-        <RuleCard
-          icon={<FileText size={20} className="text-blue-400" />}
-          title="제목 공식"
-          color="blue"
-          items={titlePatterns}
-          emptyText="패턴 분석 중"
-          delay={0.2}
-        />
-        <RuleCard
-          icon={<Lightbulb size={20} className="text-amber-400" />}
-          title="핵심 원칙"
-          color="amber"
-          items={principles}
-          emptyText="원칙 추출 중"
-          delay={0.3}
-        />
+      {/* 상단 배너 */}
+      {formula && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl bg-gradient-to-r from-[var(--accent)]/20 to-[var(--accent)]/5 border border-[var(--accent)]/30 p-5">
+          <p className="text-xs text-[var(--accent)] font-semibold mb-1">이번 주 공식</p>
+          <p className="text-lg font-bold">{formula}</p>
+        </motion.div>
+      )}
+
+      {/* DO / DON'T 2칸 구조 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* ✅ DO */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--green)]/30 overflow-hidden">
+          <div className="px-5 py-4 bg-[var(--green-soft)] border-b border-[var(--green)]/20">
+            <h3 className="font-bold text-[var(--green)]">✅ 이렇게 하세요</h3>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* 우선 주제 */}
+            <div>
+              <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">우선 주제</p>
+              <div className="flex flex-wrap gap-2">
+                {boost.map(k => (
+                  <span key={k} className="px-3 py-1.5 text-sm rounded-full bg-[var(--green)]/15 text-[var(--green)] font-medium">{k}</span>
+                ))}
+                {!boost.length && <span className="text-sm text-[var(--text-secondary)]">데이터 수집 중</span>}
+              </div>
+            </div>
+            {/* 제목 공식 */}
+            {patternCategories.length > 0 && (
+              <div>
+                <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">제목 공식</p>
+                <div className="space-y-2">
+                  {patternCategories.map(([cat, examples]) => (
+                    <div key={cat} className="p-3 rounded-xl bg-[var(--bg-hover)]">
+                      <p className="text-xs font-semibold text-[var(--green)] mb-1">{cat}</p>
+                      <div className="space-y-1">
+                        {(examples || []).map((ex: string, i: number) => (
+                          <p key={i} className="text-sm text-[var(--text-secondary)] italic">"{ex}"</p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* ❌ DON'T */}
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--accent)]/30 overflow-hidden">
+          <div className="px-5 py-4 bg-[var(--accent-soft)] border-b border-[var(--accent)]/20">
+            <h3 className="font-bold text-[var(--accent)]">❌ 이건 피하세요</h3>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* 회피 주제 */}
+            <div>
+              <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">회피 주제</p>
+              <div className="flex flex-wrap gap-2">
+                {avoid.map(k => (
+                  <span key={k} className="px-3 py-1.5 text-sm rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-medium">{k}</span>
+                ))}
+                {!avoid.length && <span className="text-sm text-[var(--text-secondary)]">없음</span>}
+              </div>
+            </div>
+            {/* 부진 이유 */}
+            {avoidReasons.length > 0 && (
+              <div>
+                <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">부진 이유</p>
+                <div className="space-y-2">
+                  {avoidReasons.map((r, i) => (
+                    <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-[var(--bg-hover)]">
+                      <span className="text-[var(--accent)] mt-0.5 shrink-0">•</span>
+                      <p className="text-sm text-[var(--text-secondary)]">{r}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
       </div>
 
-      {/* 복사 프리뷰 */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-        className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold">지침 복사 미리보기</p>
-          <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
-            <span>✅ 우선 {boost.length}개</span>
-            <span>❌ 회피 {avoid.length}개</span>
-            <span>✍️ 제목 {titlePatterns.length}개</span>
-            <span>💡 원칙 {principles.length}개</span>
+      {/* 💡 운영 원칙 */}
+      {principles.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb size={18} className="text-amber-400" />
+            <h3 className="font-semibold">운영 원칙</h3>
           </div>
-        </div>
-      </motion.div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {principles.map((p, i) => (
+              <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                <span className="text-amber-400 text-sm font-bold shrink-0">{i + 1}</span>
+                <p className="text-sm text-[var(--text-secondary)]">{p}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
-      {/* ② 상세 아코디언 */}
+      {/* 아코디언 하단 */}
       <div className="space-y-3">
-        {/* 다음 기획 추천 */}
         {recommendations.length > 0 && (
-          <Accordion title="다음 기획 추천" icon="🎯" defaultOpen delay={0.5}>
+          <Accordion title="다음 기획 추천" icon="🎯" defaultOpen>
             <div className="space-y-3">
               {recommendations.map((rec, i) => (
                 <div key={i} className="p-4 rounded-xl bg-[var(--bg-hover)]">
@@ -207,7 +204,7 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
                       {rec.desc && <p className="text-xs text-[var(--text-secondary)] mt-1">{rec.desc}</p>}
                       {rec.example && (
                         <p className="text-xs mt-2 px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] italic text-[var(--text-secondary)]">
-                          {rec.example}
+                          "{rec.example}"
                         </p>
                       )}
                     </div>
@@ -218,41 +215,12 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
           </Accordion>
         )}
 
-        {/* 제목 패턴 예시 */}
-        {titlePatterns.length > 0 && (
-          <Accordion title="제목 패턴 예시" icon="✍️" delay={0.6}>
-            <div className="space-y-2">
-              {titlePatterns.map((p, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-hover)]">
-                  <span className="text-xs text-[var(--text-secondary)] w-6 text-right">{i + 1}</span>
-                  <p className="text-sm">{p}</p>
-                </div>
-              ))}
-            </div>
-          </Accordion>
-        )}
-
-        {/* 핵심 원칙 상세 */}
-        {principles.length > 0 && (
-          <Accordion title="운영 원칙 상세" icon="💡" delay={0.7}>
-            <div className="space-y-2">
-              {principles.map((p, i) => (
-                <div key={i} className="flex items-start gap-3 p-3">
-                  <Lightbulb size={14} className="text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{p}</p>
-                </div>
-              ))}
-            </div>
-          </Accordion>
-        )}
-
-        {/* 전체 원문 */}
-        <Accordion title="전체 원문 보기" icon="📄" delay={0.8}>
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{content}</p>
+        <Accordion title="전체 원문 보기" icon="📄">
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{contentMd}</p>
         </Accordion>
       </div>
 
-      {/* ③ 과거 피드백 */}
+      {/* 과거 규칙 */}
       {feedbacks.length > 1 && (
         <div>
           <h3 className="text-lg font-semibold mb-4">과거 규칙</h3>
@@ -271,81 +239,36 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
   )
 }
 
-// ─── 서브 컴포넌트 ───
-
-function RuleCard({ icon, title, color, items, emptyText, delay }: {
-  icon: React.ReactNode; title: string; color: string; items: string[]; emptyText: string; delay: number
-}) {
-  const bgMap: Record<string, string> = {
-    green: 'bg-[var(--green-soft)]', red: 'bg-[var(--accent-soft)]',
-    blue: 'bg-blue-500/10', amber: 'bg-amber-500/10',
-  }
-  const tagMap: Record<string, string> = {
-    green: 'bg-[var(--green)]/20 text-[var(--green)]', red: 'bg-[var(--accent)]/20 text-[var(--accent)]',
-    blue: 'bg-blue-500/20 text-blue-400', amber: 'bg-amber-500/20 text-amber-400',
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }}
-      className={`rounded-2xl border border-[var(--border)] p-5 ${bgMap[color] || 'bg-[var(--bg-card)]'}`}
-    >
-      <div className="flex items-center gap-2 mb-3">
-        {icon}
-        <h3 className="text-sm font-semibold">{title}</h3>
-      </div>
-      {items.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {items.slice(0, 5).map((item, i) => (
-            <span key={i} className={`px-2.5 py-1 text-xs rounded-full font-medium ${tagMap[color] || ''}`}>
-              {item.length > 20 ? item.slice(0, 20) + '…' : item}
-            </span>
-          ))}
-          {items.length > 5 && (
-            <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--bg-hover)] text-[var(--text-secondary)]">
-              +{items.length - 5}
-            </span>
-          )}
-        </div>
-      ) : (
-        <p className="text-xs text-[var(--text-secondary)]">{emptyText}</p>
-      )}
-    </motion.div>
-  )
-}
-
-function Accordion({ title, icon, children, defaultOpen = false, delay = 0 }: {
-  title: string; icon: string; children: React.ReactNode; defaultOpen?: boolean; delay?: number
+function Accordion({ title, icon, children, defaultOpen = false }: {
+  title: string; icon: string; children: React.ReactNode; defaultOpen?: boolean
 }) {
   return (
-    <motion.details
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay }}
-      open={defaultOpen}
-      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden group"
-    >
+    <details open={defaultOpen}
+      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden group">
       <summary className="px-6 py-4 cursor-pointer hover:bg-[var(--bg-hover)] transition flex items-center gap-3">
         <ChevronRight size={16} className="text-[var(--text-secondary)] transition-transform group-open:rotate-90" />
         <span className="text-lg">{icon}</span>
         <span className="font-semibold text-sm">{title}</span>
       </summary>
-      <div className="px-6 py-5 border-t border-[var(--border)]">
-        {children}
-      </div>
-    </motion.details>
+      <div className="px-6 py-5 border-t border-[var(--border)]">{children}</div>
+    </details>
   )
 }
 
+function cleanMd(raw: string) {
+  return raw.replace(/^```\s*/gm, '').replace(/```\s*$/gm, '').replace(/^---$/gm, '').trim()
+}
 function fmtDate(d: string) { return d?.slice(0, 10).replace(/-/g, '.') || '' }
 
 function LoadingSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
       <div className="h-8 w-48 bg-[var(--bg-card)] rounded" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-[var(--bg-card)] rounded-2xl" />)}
+      <div className="h-16 bg-[var(--bg-card)] rounded-2xl" />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="h-64 bg-[var(--bg-card)] rounded-2xl" />
+        <div className="h-64 bg-[var(--bg-card)] rounded-2xl" />
       </div>
-      {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-[var(--bg-card)] rounded-2xl" />)}
     </div>
   )
 }

@@ -61,4 +61,5 @@ export interface Feedback {
   content_md: string
   keywords_boost: string[]
   keywords_avoid: string[]
+  title_patterns: Record<string, any>
 }
