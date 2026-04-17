@@ -8,6 +8,14 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from dashboard.components.db import get_supabase
 
+# --- 사이드바 로고 ---
+st.sidebar.markdown(
+    "<h1 style='text-align:center; font-size:2rem; margin-bottom:0;'>📊 YouTube Loop</h1>"
+    "<p style='text-align:center; color:gray; font-size:0.85rem; margin-top:0;'>Circle21 채널 분석</p>",
+    unsafe_allow_html=True,
+)
+st.sidebar.markdown("---")
+
 st.header("👥 Editors")
 
 sb = get_supabase()
@@ -39,11 +47,11 @@ merged = videos_df.merge(latest_stats[["video_id", "views", "likes", "comments"]
 merged["editor_id"] = pd.to_numeric(merged["editor_id"], errors="coerce")
 editors_df["id"] = pd.to_numeric(editors_df["id"], errors="coerce")
 merged = merged.merge(editors_df[["id", "name"]], left_on="editor_id", right_on="id", how="left", suffixes=("", "_editor"))
-merged["editor"] = merged["name"].fillna("미배정")
+merged["편집자"] = merged["name"].fillna("미배정")
 
 # --- 편집자별 요약 ---
 st.subheader("편집자별 성과 요약")
-summary = merged.groupby("editor").agg(
+summary = merged.groupby("편집자").agg(
     영상수=("id", "count"),
     총조회수=("views", "sum"),
     평균조회수=("views", "mean"),
@@ -60,12 +68,13 @@ st.dataframe(summary, use_container_width=True, hide_index=True)
 if len(summary) > 1:
     st.subheader("편집자 비교")
     metric = st.selectbox("비교 지표", ["평균조회수", "총조회수", "평균좋아요", "총좋아요", "영상수"])
-    fig = px.bar(summary, x="editor", y=metric, color="editor", labels={"editor": "편집자"})
+    fig = px.bar(summary, x="편집자", y=metric, color="편집자")
     st.plotly_chart(fig, use_container_width=True)
 
 # --- 특정 편집자 영상 리스트 ---
 st.subheader("편집자별 영상 목록")
-selected = st.selectbox("편집자 선택", merged["editor"].unique())
-filtered = merged[merged["editor"] == selected][["title", "published_at", "views", "likes", "comments"]]
+selected = st.selectbox("편집자 선택", merged["편집자"].unique())
+filtered = merged[merged["편집자"] == selected][["title", "published_at", "views", "likes", "comments"]].copy()
+filtered["published_at"] = pd.to_datetime(filtered["published_at"]).dt.strftime("%Y.%m.%d")
 filtered.columns = ["제목", "업로드일", "조회수", "좋아요", "댓글"]
 st.dataframe(filtered, use_container_width=True, hide_index=True)

@@ -7,6 +7,14 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from dashboard.components.db import get_supabase
 
+# --- 사이드바 로고 ---
+st.sidebar.markdown(
+    "<h1 style='text-align:center; font-size:2rem; margin-bottom:0;'>📊 YouTube Loop</h1>"
+    "<p style='text-align:center; color:gray; font-size:0.85rem; margin-top:0;'>Circle21 채널 분석</p>",
+    unsafe_allow_html=True,
+)
+st.sidebar.markdown("---")
+
 st.header("🤖 Weekly Insights")
 
 sb = get_supabase()
@@ -24,8 +32,14 @@ if not reports:
     st.info("아직 주간 리포트가 없습니다. 매주 월요일 오전 9시에 자동 생성됩니다.")
     st.stop()
 
+
+def fmt_date(d):
+    """YYYY-MM-DD → YYYY.MM.DD"""
+    return d.replace("-", ".") if d else ""
+
+
 # --- 리포트 선택 ---
-options = {f"{r['week_start']} ~ {r['week_end']}": r for r in reports}
+options = {f"{fmt_date(r['week_start'])} ~ {fmt_date(r['week_end'])}": r for r in reports}
 selected_label = st.selectbox("기간 선택", list(options.keys()))
 report = options[selected_label]
 
@@ -46,7 +60,7 @@ if top_videos:
 st.markdown("---")
 st.subheader("리포트 아카이브")
 archive_df = pd.DataFrame([{
-    "기간": f"{r['week_start']} ~ {r['week_end']}",
-    "생성일": r["created_at"][:10] if r.get("created_at") else "",
+    "기간": f"{fmt_date(r['week_start'])} ~ {fmt_date(r['week_end'])}",
+    "생성일": fmt_date(r["created_at"][:10]) if r.get("created_at") else "",
 } for r in reports])
 st.dataframe(archive_df, use_container_width=True, hide_index=True)
