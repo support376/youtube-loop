@@ -169,33 +169,38 @@ export default function Insights() {
         <div>
           <h3 className="text-lg font-semibold mb-4">🏆 TOP 3 영상</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {topVideos.slice(0, 3).map((v, i) => (
-              <motion.div key={v.id}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.15, duration: 0.5 }}
-                className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden group hover:border-[var(--accent)] transition"
-              >
-                <div className="relative">
-                  <img src={v.thumbnail_url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
-                    alt={v.title} className="w-full aspect-video object-cover" />
-                  <div className="absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                    style={{ background: RANK_COLORS[i] || '#666' }}>{i + 1}</div>
-                </div>
-                <div className="p-4">
-                  <p className="font-medium text-sm line-clamp-2 mb-3">{v.title}</p>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-bold tabular-nums">{v.views.toLocaleString()}</span>
-                      <span className="text-xs text-[var(--text-secondary)]">조회</span>
+            {topVideos.slice(0, 3).map((v, i) => {
+              const borderColor = i === 0 ? 'border-[#ff4b4b]' : i === 1 ? 'border-[#ff8a3b]' : 'border-[#ffc53b]'
+              const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'
+              return (
+                <motion.div key={v.id}
+                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.15, duration: 0.5 }}
+                  className={`rounded-2xl bg-[var(--bg-card)] border-2 overflow-hidden group hover:border-[var(--accent)] transition ${borderColor}`}
+                >
+                  <div className="relative">
+                    <img src={v.thumbnail_url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
+                      alt={v.title} className="w-full aspect-video object-cover" />
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-start gap-2 mb-3">
+                      <span className="text-lg shrink-0">{rankEmoji}</span>
+                      <p className="font-medium text-sm line-clamp-2">{v.title}</p>
                     </div>
-                    <div className="flex items-baseline gap-1 text-[var(--text-secondary)]">
-                      <span className="text-sm font-semibold tabular-nums">{v.likes.toLocaleString()}</span>
-                      <span className="text-xs">좋아요</span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold tabular-nums">{v.views.toLocaleString()}</span>
+                        <span className="text-xs text-[var(--text-secondary)]">조회</span>
+                      </div>
+                      <div className="flex items-baseline gap-1 text-[var(--text-secondary)]">
+                        <span className="text-sm font-semibold tabular-nums">{v.likes.toLocaleString()}</span>
+                        <span className="text-xs">좋아요</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              )
+            })}
           </div>
         </div>
       )}
