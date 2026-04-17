@@ -104,7 +104,6 @@ export default function FeedbackPage() {
   const boostDetails = tp._boost_details || []
   const avoidDetails = tp._avoid_details || []
   const principles = tp._principles || []
-  const recommendations = tp._recommendations || []
   const sampleCount = tp._sample_count || 0
   const contentMd = cleanContent(latest.content_md || '')
   const updatedAt = fmtDate(latest.created_at)
@@ -271,29 +270,6 @@ ${principleLines}
 
       {/* 아코디언 */}
       <div className="space-y-3">
-        {recommendations.length > 0 && (
-          <Accordion title="다음 기획 추천" icon="🎯" defaultOpen>
-            <div className="space-y-3">
-              {recommendations.map((rec, i) => (
-                <div key={i} className="p-4 rounded-xl bg-[var(--bg-hover)]">
-                  <div className="flex items-start gap-3">
-                    <span className="text-[var(--accent)] font-bold text-lg">{i + 1}</span>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{rec.title}</p>
-                      {rec.desc && <p className="text-xs text-[var(--text-secondary)] mt-1">{rec.desc}</p>}
-                      {rec.example && (
-                        <p className="text-xs mt-2 px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] italic text-[var(--text-secondary)]">
-                          "{rec.example}"
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Accordion>
-        )}
-
         <Accordion title="전체 원문 보기" icon="📄">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
             {contentMd}

@@ -103,14 +103,15 @@ def main():
     compact = [{"title": d["title"], "views": d["views"]} for d in data]
     compact_str = json.dumps(compact, ensure_ascii=False)
 
-    # ── 1단계: 구조화 JSON ──
+    # ── 1단계: 구조화 JSON (성과 분석 + 규칙 도출만, 기획 추천 없음) ──
     json_prompt = (
-        '분석 후 JSON으로만 응답. 줄바꿈 없이 한 줄로.\n\n'
+        '분석 후 JSON으로만 응답. 줄바꿈 없이 한 줄로.\n'
+        '기획 추천은 하지 마. 성과 분석과 규칙 도출까지만.\n\n'
         '{"keywords_boost":[{"keyword":"주제","views":"대표영상 조회수","video":"대표영상제목"}],'
         '"keywords_avoid":[{"keyword":"주제","views":"조회수","reason":"부진이유 1줄"}],'
         '"title_patterns":{"질문형":["예시2개"],"공분형":["예시2개"],"반전형":["예시2개"]},'
-        '"principles":["운영원칙 3~5개"],"top_formula":"공식1줄",'
-        '"recommendations":[{"title":"주제","desc":"설명","example":"제목예시"}]}\n\n'
+        '"principles":["데이터 기반 운영원칙 5~7개, 구체적으로"],'
+        '"top_formula":"[주제]+[패턴]=조회수N+ 형태 공식1줄"}\n\n'
         '데이터: ' + compact_str
     )
 
@@ -154,25 +155,25 @@ def main():
     title_patterns["_boost_details"] = boost_details
     title_patterns["_avoid_details"] = avoid_details
     title_patterns["_principles"] = parsed.get("principles", [])
-    title_patterns["_recommendations"] = parsed.get("recommendations", [])
     title_patterns["_sample_count"] = sample_count
     title_patterns["_generated_at"] = datetime.now(timezone.utc).isoformat()
 
-    # ── 2단계: PD용 텍스트 ──
+    # ── 2단계: PD용 텍스트 (성과 분석만, 기획 추천 없음) ──
     data_str = json.dumps(data, ensure_ascii=False, indent=2)
     text_prompt = f"""아래는 유튜브 채널 '양홍수 변호사'의 최근 2주 영상 성과입니다.
 
 {data_str}
 
-PD가 기획 회의에서 참고할 피드백을 작성해주세요.
-코드블록 없이, 간결하게.
-잘 된 주제, 부진한 주제, 제목 패턴, 다음 기획 추천 3건 포함."""
+PD가 기획 회의에서 참고할 성과 분석 피드백을 작성해주세요.
+코드블록 없이, 마크다운으로, 간결하게.
+포함할 내용: 잘 된 주제 분석, 부진한 주제 분석, 제목 패턴 분석, 운영 원칙.
+기획 추천이나 제목 예시는 넣지 마세요. 성과 분석과 규칙 도출까지만."""
 
     print("[feedback] 2단계: PD용 텍스트 생성...")
     content_md = generate(
-        "유튜브 채널 기획 어드바이저. 실무적이고 구체적인 피드백 제공.",
+        "유튜브 채널 성과 분석가. 데이터 기반 분석과 규칙 도출만 수행. 기획 추천은 하지 않음.",
         text_prompt,
-        max_tokens=2048,
+        max_tokens=3000,
     )
     content_md = content_md.replace("```", "").strip()
 
