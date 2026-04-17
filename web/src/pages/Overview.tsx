@@ -56,7 +56,7 @@ export default function Overview() {
   }).sort((a, b) => b.value - a.value)
 
   const top3Ids = new Set(allVideosRes.slice(0, 3).map(v => v.id))
-  const barItems = allVideosRes.reverse().map(v => ({
+  const barItems = allVideosRes.map(v => ({
     label: v.label,
     value: v.value,
     isTop3: top3Ids.has(v.id),

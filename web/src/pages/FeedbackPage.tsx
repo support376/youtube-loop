@@ -1,126 +1,289 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, Target, Ban, FileText, Lightbulb, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Feedback } from '../hooks/useSupabase'
 
+// ─── 피드백 파싱 ───
+
+function cleanMd(raw: string): string {
+  return raw.replace(/^```\s*/gm, '').replace(/```\s*$/gm, '').replace(/^---$/gm, '').trim()
+}
+
+function extractTitlePatterns(content: string): string[] {
+  const patterns: string[] = []
+  const lines = content.split('\n')
+  for (const line of lines) {
+    // "~하면 무죄인가요?" 같은 따옴표 패턴
+    const quotes = line.match(/"([^"]+)"/g)
+    if (quotes) {
+      for (const q of quotes) patterns.push(q.replace(/"/g, ''))
+    }
+    // ❓ / 😤 / 🔍 패턴 라인
+    const emoji = line.match(/^[-*]\s*(❓|😤|🔍|✅|📝)\s*(.+)/)
+    if (emoji) patterns.push(emoji[2].split('→')[0].trim())
+  }
+  return [...new Set(patterns)].slice(0, 6)
+}
+
+function extractPrinciples(content: string): string[] {
+  const principles: string[] = []
+  const lines = content.split('\n')
+  let inMemo = false
+  for (const line of lines) {
+    if (/💡\s*운영|핵심|원칙|메모/.test(line)) { inMemo = true; continue }
+    if (inMemo && /^\[/.test(line.trim())) break
+    if (inMemo && line.trim().startsWith('-')) {
+      principles.push(line.trim().replace(/^-\s*/, ''))
+    }
+  }
+  // 폴백: 🔥/💡 있는 줄 추출
+  if (!principles.length) {
+    for (const line of lines) {
+      if (/^[-*]\s*(🔥|💡|⚠️)/.test(line.trim())) {
+        principles.push(line.trim().replace(/^[-*]\s*/, ''))
+      }
+    }
+  }
+  return principles.slice(0, 4)
+}
+
+function extractRecommendations(content: string): { title: string; desc: string; example: string }[] {
+  const recs: { title: string; desc: string; example: string }[] = []
+  const lines = content.split('\n')
+  let current: { title: string; desc: string; example: string } | null = null
+
+  for (const line of lines) {
+    const recMatch = line.match(/^-\s*추천\s*\d+[:：]\s*(.+)/)
+    if (recMatch) {
+      if (current) recs.push(current)
+      current = { title: recMatch[1], desc: '', example: '' }
+      continue
+    }
+    if (current) {
+      if (/^→\s*제목 예시|^→\s*"/.test(line.trim())) {
+        current.example = line.trim().replace(/^→\s*제목 예시[:：]?\s*/, '').replace(/^→\s*/, '')
+      } else if (/^→/.test(line.trim())) {
+        current.desc += (current.desc ? ' ' : '') + line.trim().replace(/^→\s*/, '')
+      }
+    }
+  }
+  if (current) recs.push(current)
+  return recs.slice(0, 3)
+}
+
+// ─── 메인 ───
+
 export default function FeedbackPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
+  const [news, setNews] = useState<any[]>([])
+  const [community, setCommunity] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase
-        .from('feedback')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10)
-      setFeedbacks(data || [])
+    const fetchData = async () => {
+      const today = new Date().toISOString().slice(0, 10)
+      const [fbRes, nRes, cRes] = await Promise.all([
+        supabase.from('feedback').select('*').order('created_at', { ascending: false }).limit(10),
+        supabase.from('crawled_news').select('title, source, source_type, section, keyword, url')
+          .eq('crawl_date', today).order('created_at', { ascending: false }),
+        supabase.from('crawled_community').select('title, platform, url')
+          .eq('crawl_date', today).order('created_at', { ascending: false }),
+      ])
+      setFeedbacks(fbRes.data || [])
+      setNews(nRes.data || [])
+      setCommunity(cRes.data || [])
       setLoading(false)
     }
-    fetch()
+    fetchData()
   }, [])
 
-  if (loading) return <div className="animate-pulse h-64 bg-[var(--bg-card)] rounded-2xl" />
-
+  if (loading) return <LoadingSkeleton />
   if (!feedbacks.length) {
-    return (
-      <div className="text-center py-20 text-[var(--text-secondary)]">
-        아직 피드백이 없습니다. 매주 월요일 오전 9:30에 자동 생성됩니다.
-      </div>
-    )
+    return <div className="text-center py-20 text-[var(--text-secondary)]">아직 피드백이 없습니다. 매주 월요일 오전 9:30에 자동 생성됩니다.</div>
   }
 
   const latest = feedbacks[0]
+  const content = cleanMd(latest.content_md || '')
   const boost = latest.keywords_boost || []
   const avoid = latest.keywords_avoid || []
+  const titlePatterns = extractTitlePatterns(content)
+  const principles = extractPrinciples(content)
+  const recommendations = extractRecommendations(content)
+  const updatedAt = fmtDate(latest.created_at)
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(latest.content_md || '')
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
+
+    const newsText = news.map((n, i) =>
+      `${i + 1}. [${n.source_type}${n.section ? '/' + n.section : ''}${n.keyword ? '/' + n.keyword : ''}] ${n.title}\n   출처: ${n.source || '-'}\n   ${n.url}`
+    ).join('\n\n')
+
+    const commText = community.map((c, i) =>
+      `${i + 1}. [${c.platform}] ${c.title}\n   ${c.url}`
+    ).join('\n\n')
+
+    const text = `[기획 규칙 — YouTube Loop 자동 생성]
+우선 주제: ${boost.join(', ') || '없음'}
+회피 주제: ${avoid.join(', ') || '없음'}
+제목 공식: ${titlePatterns.join(' / ') || '없음'}
+핵심 원칙: ${principles.join(' | ') || '없음'}
+
+[오늘의 크롤링 — ${today}]
+
+📰 뉴스 (${news.length}건)
+${newsText || '(오늘 크롤링 데이터 없음)'}
+
+💬 커뮤니티 (${community.length}건)
+${commText || '(오늘 크롤링 데이터 없음)'}
+
+위 규칙 적용해서 기획카드 만들어줘.`
+
+    await navigator.clipboard.writeText(text)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), 2500)
   }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">피드백 루프</h2>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition"
-        >
+      {/* 헤더 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">기획 규칙</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">마지막 업데이트: {updatedAt}</p>
+        </div>
+        <button onClick={handleCopy}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition shrink-0">
           {copied ? <Check size={16} /> : <Copy size={16} />}
-          {copied ? '복사 완료!' : '코워크에 복사'}
+          {copied ? '규칙 + 크롤링 복사 완료!' : '코워크에 복사'}
         </button>
       </div>
 
-      {/* 최신 피드백 */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm text-[var(--text-secondary)]">
-            생성일: {fmtDate(latest.created_at)}
-          </span>
-          <span className="text-xs px-3 py-1 rounded-full bg-[var(--green-soft)] text-[var(--green)]">
-            최신
-          </span>
+      {/* ① 핵심 규칙 카드 4개 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <RuleCard
+          icon={<Target size={20} className="text-[var(--green)]" />}
+          title="우선 주제"
+          color="green"
+          items={boost}
+          emptyText="키워드 없음"
+          delay={0}
+        />
+        <RuleCard
+          icon={<Ban size={20} className="text-[var(--accent)]" />}
+          title="회피 주제"
+          color="red"
+          items={avoid}
+          emptyText="키워드 없음"
+          delay={0.1}
+        />
+        <RuleCard
+          icon={<FileText size={20} className="text-blue-400" />}
+          title="제목 공식"
+          color="blue"
+          items={titlePatterns}
+          emptyText="패턴 분석 중"
+          delay={0.2}
+        />
+        <RuleCard
+          icon={<Lightbulb size={20} className="text-amber-400" />}
+          title="핵심 원칙"
+          color="amber"
+          items={principles}
+          emptyText="원칙 추출 중"
+          delay={0.3}
+        />
+      </div>
+
+      {/* 복사 프리뷰 */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+        className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold">코워크 복사 내용 미리보기</p>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <span>규칙 + 크롤링 {news.length + community.length}건</span>
+          </div>
         </div>
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-secondary)]">
-          {latest.content_md}
+        <div className="flex gap-6 text-xs text-[var(--text-secondary)]">
+          <span>📰 뉴스 {news.length}건</span>
+          <span>💬 커뮤니티 {community.length}건</span>
+          <span>✅ 우선 {boost.length}개</span>
+          <span>❌ 회피 {avoid.length}개</span>
         </div>
       </motion.div>
 
-      {/* 키워드 */}
-      {(boost.length > 0 || avoid.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {boost.length > 0 && (
-            <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
-              <h3 className="text-sm font-semibold mb-3 text-[var(--green)]">성과 좋은 키워드</h3>
-              <div className="flex flex-wrap gap-2">
-                {boost.map(k => (
-                  <span key={k} className="px-3 py-1 text-xs rounded-full bg-[var(--green-soft)] text-[var(--green)]">
-                    {k}
-                  </span>
-                ))}
-              </div>
+      {/* ② 상세 아코디언 */}
+      <div className="space-y-3">
+        {/* 다음 기획 추천 */}
+        {recommendations.length > 0 && (
+          <Accordion title="다음 기획 추천" icon="🎯" defaultOpen delay={0.5}>
+            <div className="space-y-3">
+              {recommendations.map((rec, i) => (
+                <div key={i} className="p-4 rounded-xl bg-[var(--bg-hover)]">
+                  <div className="flex items-start gap-3">
+                    <span className="text-[var(--accent)] font-bold text-lg">{i + 1}</span>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{rec.title}</p>
+                      {rec.desc && <p className="text-xs text-[var(--text-secondary)] mt-1">{rec.desc}</p>}
+                      {rec.example && (
+                        <p className="text-xs mt-2 px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] italic text-[var(--text-secondary)]">
+                          {rec.example}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-          {avoid.length > 0 && (
-            <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
-              <h3 className="text-sm font-semibold mb-3 text-[var(--accent)]">부진 키워드</h3>
-              <div className="flex flex-wrap gap-2">
-                {avoid.map(k => (
-                  <span key={k} className="px-3 py-1 text-xs rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
-                    {k}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+          </Accordion>
+        )}
 
-      {/* 과거 피드백 */}
+        {/* 제목 패턴 예시 */}
+        {titlePatterns.length > 0 && (
+          <Accordion title="제목 패턴 예시" icon="✍️" delay={0.6}>
+            <div className="space-y-2">
+              {titlePatterns.map((p, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-hover)]">
+                  <span className="text-xs text-[var(--text-secondary)] w-6 text-right">{i + 1}</span>
+                  <p className="text-sm">{p}</p>
+                </div>
+              ))}
+            </div>
+          </Accordion>
+        )}
+
+        {/* 핵심 원칙 상세 */}
+        {principles.length > 0 && (
+          <Accordion title="운영 원칙 상세" icon="💡" delay={0.7}>
+            <div className="space-y-2">
+              {principles.map((p, i) => (
+                <div key={i} className="flex items-start gap-3 p-3">
+                  <Lightbulb size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{p}</p>
+                </div>
+              ))}
+            </div>
+          </Accordion>
+        )}
+
+        {/* 전체 원문 */}
+        <Accordion title="전체 원문 보기" icon="📄" delay={0.8}>
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{content}</p>
+        </Accordion>
+      </div>
+
+      {/* ③ 과거 피드백 */}
       {feedbacks.length > 1 && (
         <div>
-          <h3 className="text-lg font-semibold mb-4">과거 피드백</h3>
+          <h3 className="text-lg font-semibold mb-4">과거 규칙</h3>
           <div className="space-y-3">
             {feedbacks.slice(1).map(fb => (
-              <details
-                key={fb.id}
-                className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden"
-              >
-                <summary className="p-4 cursor-pointer hover:bg-[var(--bg-hover)] transition text-sm">
-                  {fmtDate(fb.created_at)} ({fb.period || 'weekly'})
-                </summary>
-                <div className="p-4 pt-0 text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
-                  {fb.content_md}
-                </div>
-              </details>
+              <Accordion key={fb.id} title={`${fmtDate(fb.created_at)} (${fb.period || 'weekly'})`} icon="📋">
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                  {cleanMd(fb.content_md || '')}
+                </p>
+              </Accordion>
             ))}
           </div>
         </div>
@@ -129,6 +292,81 @@ export default function FeedbackPage() {
   )
 }
 
-function fmtDate(d: string) {
-  return d?.slice(0, 10).replace(/-/g, '.') || ''
+// ─── 서브 컴포넌트 ───
+
+function RuleCard({ icon, title, color, items, emptyText, delay }: {
+  icon: React.ReactNode; title: string; color: string; items: string[]; emptyText: string; delay: number
+}) {
+  const bgMap: Record<string, string> = {
+    green: 'bg-[var(--green-soft)]', red: 'bg-[var(--accent-soft)]',
+    blue: 'bg-blue-500/10', amber: 'bg-amber-500/10',
+  }
+  const tagMap: Record<string, string> = {
+    green: 'bg-[var(--green)]/20 text-[var(--green)]', red: 'bg-[var(--accent)]/20 text-[var(--accent)]',
+    blue: 'bg-blue-500/20 text-blue-400', amber: 'bg-amber-500/20 text-amber-400',
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4 }}
+      className={`rounded-2xl border border-[var(--border)] p-5 ${bgMap[color] || 'bg-[var(--bg-card)]'}`}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        {icon}
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      {items.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {items.slice(0, 5).map((item, i) => (
+            <span key={i} className={`px-2.5 py-1 text-xs rounded-full font-medium ${tagMap[color] || ''}`}>
+              {item.length > 20 ? item.slice(0, 20) + '…' : item}
+            </span>
+          ))}
+          {items.length > 5 && (
+            <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+              +{items.length - 5}
+            </span>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-[var(--text-secondary)]">{emptyText}</p>
+      )}
+    </motion.div>
+  )
+}
+
+function Accordion({ title, icon, children, defaultOpen = false, delay = 0 }: {
+  title: string; icon: string; children: React.ReactNode; defaultOpen?: boolean; delay?: number
+}) {
+  return (
+    <motion.details
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay }}
+      open={defaultOpen}
+      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden group"
+    >
+      <summary className="px-6 py-4 cursor-pointer hover:bg-[var(--bg-hover)] transition flex items-center gap-3">
+        <ChevronRight size={16} className="text-[var(--text-secondary)] transition-transform group-open:rotate-90" />
+        <span className="text-lg">{icon}</span>
+        <span className="font-semibold text-sm">{title}</span>
+      </summary>
+      <div className="px-6 py-5 border-t border-[var(--border)]">
+        {children}
+      </div>
+    </motion.details>
+  )
+}
+
+function fmtDate(d: string) { return d?.slice(0, 10).replace(/-/g, '.') || '' }
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-8 w-48 bg-[var(--bg-card)] rounded" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-[var(--bg-card)] rounded-2xl" />)}
+      </div>
+      {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-[var(--bg-card)] rounded-2xl" />)}
+    </div>
+  )
 }
