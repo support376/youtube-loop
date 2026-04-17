@@ -85,17 +85,45 @@ const RANK_COLORS = ['#ff4b4b', '#ff8a3b', '#ffc53b']
 
 // ─── 컴포넌트 ───
 
+interface TopVideo {
+  id: string
+  title: string
+  thumbnail_url: string
+  views: number
+  likes: number
+}
+
 export default function Insights() {
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [topVideos, setTopVideos] = useState<TopVideo[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data } = await supabase
-        .from('weekly_reports').select('*')
-        .order('week_start', { ascending: false }).limit(20)
-      setReports(data || [])
+      const [repRes, vidRes, statsRes] = await Promise.all([
+        supabase.from('weekly_reports').select('*')
+          .order('week_start', { ascending: false }).limit(20),
+        supabase.from('videos').select('id, title, thumbnail_url')
+          .order('published_at', { ascending: false }),
+        supabase.from('video_stats').select('video_id, views, likes')
+          .order('fetched_at', { ascending: false }),
+      ])
+      setReports(repRes.data || [])
+
+      // DB에서 실시간 TOP 3 계산
+      const latestStats = new Map<string, { views: number; likes: number }>()
+      for (const s of (statsRes.data || [])) {
+        if (!latestStats.has(s.video_id)) latestStats.set(s.video_id, s)
+      }
+      const merged = (vidRes.data || []).map(v => ({
+        ...v,
+        views: latestStats.get(v.id)?.views || 0,
+        likes: latestStats.get(v.id)?.likes || 0,
+      }))
+      merged.sort((a, b) => b.views - a.views)
+      setTopVideos(merged.slice(0, 3))
+
       setLoading(false)
     }
     fetchData()
@@ -106,7 +134,6 @@ export default function Insights() {
 
   const report = reports[selected]
   const sections = splitSections(report.report_md || '')
-  const topVideos = (report.top_videos || []) as { id: string; title: string; views: number }[]
 
   // 섹션 분류
   const topSection = sections.find(s => /TOP/.test(s.title))
@@ -152,7 +179,7 @@ export default function Insights() {
                 {/* 썸네일 */}
                 <div className="relative">
                   <img
-                    src={`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
+                    src={v.thumbnail_url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
                     alt={v.title}
                     className="w-full aspect-video object-cover"
                   />
@@ -164,9 +191,15 @@ export default function Insights() {
                 {/* 정보 */}
                 <div className="p-4">
                   <p className="font-medium text-sm line-clamp-2 mb-3">{v.title}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold tabular-nums">{v.views.toLocaleString()}</span>
-                    <span className="text-xs text-[var(--text-secondary)]">조회수</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-bold tabular-nums">{v.views.toLocaleString()}</span>
+                      <span className="text-xs text-[var(--text-secondary)]">조회</span>
+                    </div>
+                    <div className="flex items-baseline gap-1 text-[var(--text-secondary)]">
+                      <span className="text-sm font-semibold tabular-nums">{v.likes.toLocaleString()}</span>
+                      <span className="text-xs">좋아요</span>
+                    </div>
                   </div>
                 </div>
               </motion.div>
