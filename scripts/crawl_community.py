@@ -701,13 +701,19 @@ BATCH_SIZE = 50
 
 
 def insert_to_supabase(articles_by_source: dict[str, list[dict]], crawl_date: str) -> int:
-    """필터링된 기사를 Supabase crawled_community 테이블에 배치 INSERT한다."""
+    """필터링된 기사를 Supabase crawled_community 테이블에 배치 INSERT. URL 중복 제거."""
     supabase = get_client()
-    rows = []
 
+    # 이미 저장된 URL 조회 → 중복 제거
+    existing_resp = supabase.table("crawled_community").select("url").eq("crawl_date", crawl_date).execute()
+    existing_urls = {r["url"] for r in (existing_resp.data or [])}
+
+    rows = []
     for source_key, arts in articles_by_source.items():
         platform = PLATFORM_MAP.get(source_key, source_key)
         for art in arts:
+            if art.get("url", "") in existing_urls:
+                continue
             pub_date: datetime | None = art.get("pub_date")
             rows.append({
                 "crawl_date": crawl_date,
@@ -743,11 +749,10 @@ def main():
     print("[2/4] 디시인사이드...")
     raw_dc = crawl_dcinside(15)
 
-    print("[3/4] 더쿠...")
+    print("[3/3] 더쿠...")
     raw_tq = crawl_theqoo(15)
 
-    print("[4/4] 인스티즈...")
-    raw_iz = crawl_instiz(10)
+    # 인스티즈 제거 (403 영구 차단)
 
     # 2) 사이트별 필터링 & dedup
     print("\n[필터링] 블랙리스트 + 빈 제목 + 유사도 dedup...")
@@ -758,17 +763,15 @@ def main():
     filtered_fm = filter_and_deduplicate(raw_fm)
     filtered_dc = filter_and_deduplicate(raw_dc)
     filtered_tq = filter_and_deduplicate(raw_tq)
-    filtered_iz = filter_and_deduplicate(raw_iz)
 
     # 3) 전체 합쳐서 cross-site dedup
-    combined = filtered_fm + filtered_dc + filtered_tq + filtered_iz
+    combined = filtered_fm + filtered_dc + filtered_tq
     deduped = _dedup_by_similarity(combined)
 
     articles_by_source = {
         "에펨": [a for a in deduped if a.get("source") == "에펨"],
         "디시": [a for a in deduped if a.get("source") == "디시"],
         "더쿠": [a for a in deduped if a.get("source") == "더쿠"],
-        "인스티즈": [a for a in deduped if a.get("source") == "인스티즈"],
     }
 
     total = sum(len(v) for v in articles_by_source.values())

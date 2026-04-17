@@ -593,11 +593,21 @@ def filter_and_deduplicate(articles: list[dict]) -> list[dict]:
 # ── Supabase INSERT ───────────────────────────────────
 
 def insert_articles(articles: list[dict], crawl_date: str, batch_size: int = 50) -> int:
-    """기사 목록을 Supabase crawled_news 테이블에 배치 INSERT. 삽입된 행 수 반환."""
+    """기사 목록을 Supabase crawled_news 테이블에 배치 INSERT. URL 중복 제거 후 삽입."""
     if not articles:
         return 0
 
     supabase = get_client()
+
+    # 이미 저장된 URL 조회 → 중복 제거
+    existing_resp = supabase.table("crawled_news").select("url").eq("crawl_date", crawl_date).execute()
+    existing_urls = {r["url"] for r in (existing_resp.data or [])}
+    articles = [a for a in articles if a.get("url", "") not in existing_urls]
+    if not articles:
+        print(f"  → 새 기사 없음 (전부 중복)")
+        return 0
+    print(f"  → 중복 제외 후 {len(articles)}건 INSERT")
+
     rows = []
     for art in articles:
         pub_date = art.get("pub_date")
