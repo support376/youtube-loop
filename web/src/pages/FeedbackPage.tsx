@@ -9,49 +9,44 @@ import type { Feedback } from '../hooks/useSupabase'
 interface TitlePatterns {
   [key: string]: any
   _top_formula?: string
-  _avoid_reasons?: string[]
+  _boost_details?: { keyword: string; views: string; video: string }[]
+  _avoid_details?: { keyword: string; views: string; reason: string }[]
   _principles?: string[]
   _recommendations?: { title: string; desc: string; example: string }[]
+  _sample_count?: number
 }
 
-// ─── content_md 정리: JSON 날것 / 코드블록 / 구분선 처리 ───
+// ─── content_md 정리 ───
 
 function cleanContent(raw: string): string {
   let text = raw.trim()
-  // JSON인지 감지
   if (text.startsWith('{') || text.startsWith('```')) {
     try {
       const cleaned = text.replace(/^```\w*\s*/gm, '').replace(/```\s*$/gm, '').trim()
-      const parsed = JSON.parse(cleaned.startsWith('{') ? cleaned : cleaned)
-      // JSON이면 읽기 좋게 변환
+      const parsed = JSON.parse(cleaned)
       return jsonToReadable(parsed)
-    } catch {
-      // JSON 아니면 마크다운 잔재물만 정리
-    }
+    } catch { /* not JSON */ }
   }
   return text.replace(/^```\w*\s*/gm, '').replace(/```\s*$/gm, '').trim()
 }
 
 function jsonToReadable(obj: any): string {
   const lines: string[] = []
-  if (obj.keywords_boost) lines.push(`## 우선 주제\n${(obj.keywords_boost as string[]).map(k => `- ${k}`).join('\n')}`)
-  if (obj.keywords_avoid) lines.push(`## 회피 주제\n${(obj.keywords_avoid as string[]).map(k => `- ${k}`).join('\n')}`)
-  if (obj.title_patterns) {
-    lines.push('## 제목 공식')
-    for (const [cat, examples] of Object.entries(obj.title_patterns)) {
-      if (cat.startsWith('_') || !Array.isArray(examples)) continue
-      lines.push(`**${cat}**`)
-      for (const ex of examples) lines.push(`- "${ex}"`)
+  if (obj.keywords_boost) {
+    lines.push('## 우선 주제')
+    const items = Array.isArray(obj.keywords_boost) ? obj.keywords_boost : []
+    for (const item of items) {
+      lines.push(typeof item === 'string' ? `- ${item}` : `- **${item.keyword}** — ${item.views}뷰`)
     }
   }
-  if (obj.principles) lines.push(`## 운영 원칙\n${(obj.principles as string[]).map(p => `- ${p}`).join('\n')}`)
-  if (obj.recommendations) {
-    lines.push('## 기획 추천')
-    for (const r of obj.recommendations as any[]) {
-      lines.push(`- **${r.title}**: ${r.desc || ''}\n  → "${r.example || ''}"`)
+  if (obj.keywords_avoid) {
+    lines.push('## 회피 주제')
+    const items = Array.isArray(obj.keywords_avoid) ? obj.keywords_avoid : []
+    for (const item of items) {
+      lines.push(typeof item === 'string' ? `- ${item}` : `- **${item.keyword}** — ${item.reason || ''}`)
     }
   }
-  if (obj.content_md) lines.push(`\n---\n\n${obj.content_md}`)
+  if (obj.content_md) lines.push(`\n${obj.content_md}`)
   return lines.join('\n\n') || JSON.stringify(obj, null, 2)
 }
 
@@ -91,7 +86,7 @@ export default function FeedbackPage() {
     return <div className="text-center py-20 text-[var(--text-secondary)]">아직 피드백이 없습니다.</div>
   }
 
-  // 날짜별 중복 제거 (같은 날짜면 최신 1개만)
+  // 날짜별 dedup
   const seen = new Set<string>()
   const deduped = feedbacks.filter(fb => {
     const date = fb.created_at?.slice(0, 10) || ''
@@ -106,37 +101,46 @@ export default function FeedbackPage() {
   const tp = (latest.title_patterns || {}) as TitlePatterns
   const patternCategories = Object.entries(tp).filter(([k]) => !k.startsWith('_')) as [string, string[]][]
   const formula = tp._top_formula || ''
-  const avoidReasons = tp._avoid_reasons || []
+  const boostDetails = tp._boost_details || []
+  const avoidDetails = tp._avoid_details || []
   const principles = tp._principles || []
   const recommendations = tp._recommendations || []
+  const sampleCount = tp._sample_count || 0
   const contentMd = cleanContent(latest.content_md || '')
   const updatedAt = fmtDate(latest.created_at)
 
-  // 회피 주제 + 부진 이유 매핑
-  const avoidWithReasons = avoid.map((k, i) => ({
-    keyword: k,
-    reason: avoidReasons[i] || '',
-  }))
-
   const handleCopy = async () => {
+    const boostLines = boostDetails.length
+      ? boostDetails.map(b => `- ${b.keyword} — ${b.views}뷰 (${b.video || ''})`).join('\n')
+      : boost.map(k => `- ${k}`).join('\n') || '- 없음'
+
+    const avoidLines = avoidDetails.length
+      ? avoidDetails.map(a => `- ${a.keyword} — ${a.views}뷰, ${a.reason || ''}`).join('\n')
+      : avoid.map(k => `- ${k}`).join('\n') || '- 없음'
+
     const patternLines = patternCategories
       .map(([cat, examples]) => `- ${cat}: ${(examples || []).join(' / ')}`)
-      .join('\n')
+      .join('\n') || '- 없음'
+
+    const principleLines = principles.length
+      ? principles.map(p => `- ${p}`).join('\n')
+      : '- 없음'
 
     const text = `# YouTube Loop 성과 피드백 (매주 갱신)
 # 마지막 업데이트: ${updatedAt}
+# 샘플: ${sampleCount}개 영상 기반
 
 ## 우선 주제
-${boost.length ? boost.map(k => `- ${k}`).join('\n') : '- 없음'}
+${boostLines}
 
-## 회피 주제
-${avoid.length ? avoid.map(k => `- ${k}`).join('\n') : '- 없음'}
+## 회피 주제 (주제 자체가 아니라 타이밍·각도 문제일 수 있음)
+${avoidLines}
 
 ## 잘 되는 제목 공식
-${patternLines || '- 없음'}
+${patternLines}
 
 ## 운영 원칙
-${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
+${principleLines}
 
 토픽 선정 시 위 성과 데이터 반영해서 우선순위 조정할 것.`
 
@@ -151,7 +155,9 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">기획 규칙</h2>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">마지막 업데이트: {updatedAt}</p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
+            마지막 업데이트: {updatedAt} · 샘플 {sampleCount}개 영상
+          </p>
         </div>
         <button onClick={handleCopy}
           className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition shrink-0">
@@ -169,7 +175,7 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
         </motion.div>
       )}
 
-      {/* DO / DON'T 2칸 구조 */}
+      {/* DO / DON'T 2칸 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* ✅ DO */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
@@ -180,9 +186,16 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
           <div className="p-5 space-y-4">
             <div>
               <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">우선 주제</p>
-              <div className="flex flex-wrap gap-2">
-                {boost.map(k => (
-                  <span key={k} className="px-3 py-1.5 text-sm rounded-full bg-[var(--green)]/15 text-[var(--green)] font-medium">{k}</span>
+              <div className="space-y-2">
+                {(boostDetails.length ? boostDetails : boost.map(k => ({ keyword: k, views: '', video: '' }))).map((b, i) => (
+                  <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-hover)]">
+                    <span className="px-3 py-1 text-sm rounded-full bg-[var(--green)]/15 text-[var(--green)] font-medium">
+                      {typeof b === 'string' ? b : b.keyword}
+                    </span>
+                    {typeof b !== 'string' && b.views && (
+                      <span className="text-xs text-[var(--text-secondary)]">{b.views}뷰</span>
+                    )}
+                  </div>
                 ))}
                 {!boost.length && <span className="text-sm text-[var(--text-secondary)]">데이터 수집 중</span>}
               </div>
@@ -194,11 +207,9 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
                   {patternCategories.map(([cat, examples]) => (
                     <div key={cat} className="p-3 rounded-xl bg-[var(--bg-hover)]">
                       <p className="text-xs font-semibold text-[var(--green)] mb-1">{cat}</p>
-                      <div className="space-y-1">
-                        {(examples || []).map((ex: string, i: number) => (
-                          <p key={i} className="text-sm text-[var(--text-secondary)] italic">"{ex}"</p>
-                        ))}
-                      </div>
+                      {(examples || []).map((ex: string, i: number) => (
+                        <p key={i} className="text-sm text-[var(--text-secondary)] italic">"{ex}"</p>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -214,17 +225,27 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
             <h3 className="font-bold text-[var(--accent)]">❌ 이건 피하세요</h3>
           </div>
           <div className="p-5 space-y-3">
-            {avoidWithReasons.map((item, i) => (
+            {(avoidDetails.length ? avoidDetails : avoid.map(k => ({ keyword: k, views: '', reason: '' }))).map((item, i) => (
               <div key={i} className="p-3 rounded-xl bg-[var(--bg-hover)]">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-medium">{item.keyword}</span>
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-medium">
+                    {typeof item === 'string' ? item : item.keyword}
+                  </span>
+                  {typeof item !== 'string' && item.views && (
+                    <span className="text-xs text-[var(--accent)] font-medium">{item.views}뷰</span>
+                  )}
                 </div>
-                {item.reason && (
-                  <p className="text-xs text-[var(--text-secondary)] mt-1">{item.reason}</p>
+                {typeof item !== 'string' && item.reason && (
+                  <p className="text-xs text-[var(--text-secondary)] mt-2">{item.reason}</p>
                 )}
               </div>
             ))}
             {!avoid.length && <span className="text-sm text-[var(--text-secondary)]">없음</span>}
+            {avoid.length > 0 && (
+              <p className="text-xs text-[var(--text-secondary)] mt-2 px-1 italic">
+                ⚠️ 주제 자체가 아니라 타이밍·제목·각도 문제일 수 있음 (샘플 {sampleCount}개)
+              </p>
+            )}
           </div>
         </motion.div>
       </div>
@@ -248,7 +269,7 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
         </motion.div>
       )}
 
-      {/* 아코디언 하단 */}
+      {/* 아코디언 */}
       <div className="space-y-3">
         {recommendations.length > 0 && (
           <Accordion title="다음 기획 추천" icon="🎯" defaultOpen>
@@ -280,7 +301,7 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
         </Accordion>
       </div>
 
-      {/* 과거 규칙 (날짜 dedup 적용) */}
+      {/* 과거 규칙 */}
       {deduped.length > 1 && (
         <div>
           <h3 className="text-lg font-semibold mb-4">과거 규칙</h3>

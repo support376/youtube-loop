@@ -2,6 +2,7 @@
 
 매주 월요일 오전 9:30 실행.
 2단계: 1) 구조화 JSON 생성 2) PD용 텍스트 생성
+keywords_avoid에 이유 포함, principles 구조화 저장, 샘플 수 기록.
 """
 
 import sys
@@ -70,7 +71,6 @@ def parse_json(text):
             if part.startswith("{"):
                 text = part
                 break
-    # 첫 번째 완전한 JSON 객체만 추출 (중괄호 매칭)
     start = text.find("{")
     if start < 0:
         return json.loads(text)
@@ -97,27 +97,25 @@ def main():
         return
 
     data = build_data(videos, stats)
-    data_str = json.dumps(data, ensure_ascii=False, indent=2)
+    sample_count = len(data)
 
-    # ── 1단계: 구조화 JSON (짧은 프롬프트 + 압축 데이터) ──
-    # 데이터를 제목+조회수만 압축
+    # 압축 데이터
     compact = [{"title": d["title"], "views": d["views"]} for d in data]
     compact_str = json.dumps(compact, ensure_ascii=False)
 
+    # ── 1단계: 구조화 JSON ──
     json_prompt = (
         '분석 후 JSON으로만 응답. 줄바꿈 없이 한 줄로.\n\n'
-        '{"keywords_boost":["주제3~6개"],"keywords_avoid":["부진주제1~3개"],'
+        '{"keywords_boost":[{"keyword":"주제","views":"대표영상 조회수","video":"대표영상제목"}],'
+        '"keywords_avoid":[{"keyword":"주제","views":"조회수","reason":"부진이유 1줄"}],'
         '"title_patterns":{"질문형":["예시2개"],"공분형":["예시2개"],"반전형":["예시2개"]},'
-        '"principles":["원칙3~5개"],"top_formula":"공식1줄",'
-        '"avoid_reasons":["이유1줄씩"],'
+        '"principles":["운영원칙 3~5개"],"top_formula":"공식1줄",'
         '"recommendations":[{"title":"주제","desc":"설명","example":"제목예시"}]}\n\n'
         '데이터: ' + compact_str
     )
 
-    system_json = "JSON만 출력. 다른 텍스트 금지."
-
     print("[feedback] 1단계: 구조화 JSON 생성...")
-    raw_json = generate(system_json, json_prompt, max_tokens=1500)
+    raw_json = generate("JSON만 출력. 다른 텍스트 금지.", json_prompt, max_tokens=1500)
 
     try:
         parsed = parse_json(raw_json)
@@ -126,8 +124,26 @@ def main():
         print(f"[feedback] JSON 파싱 실패: {e}")
         parsed = {}
 
-    boost = list(dict.fromkeys(parsed.get("keywords_boost", [])))
-    avoid = list(dict.fromkeys(parsed.get("keywords_avoid", [])))
+    # boost: [{keyword, views, video}] → keywords_boost에는 keyword만, 상세는 title_patterns에 저장
+    boost_raw = parsed.get("keywords_boost", [])
+    if boost_raw and isinstance(boost_raw[0], dict):
+        boost_keywords = list(dict.fromkeys(b["keyword"] for b in boost_raw))
+        boost_details = boost_raw
+    else:
+        # 폴백: 문자열 배열
+        boost_keywords = list(dict.fromkeys(boost_raw))
+        boost_details = [{"keyword": k, "views": "", "video": ""} for k in boost_keywords]
+
+    # avoid: [{keyword, views, reason}]
+    avoid_raw = parsed.get("keywords_avoid", [])
+    if avoid_raw and isinstance(avoid_raw[0], dict):
+        avoid_keywords = list(dict.fromkeys(a["keyword"] for a in avoid_raw))
+        avoid_details = avoid_raw
+    else:
+        avoid_keywords = list(dict.fromkeys(avoid_raw))
+        avoid_details = [{"keyword": k, "views": "", "reason": ""} for k in avoid_keywords]
+
+    # title_patterns
     title_patterns = parsed.get("title_patterns", {})
     for cat in list(title_patterns.keys()):
         if isinstance(title_patterns[cat], list):
@@ -135,12 +151,15 @@ def main():
 
     # 메타 정보 저장
     title_patterns["_top_formula"] = parsed.get("top_formula", "")
-    title_patterns["_avoid_reasons"] = parsed.get("avoid_reasons", [])
+    title_patterns["_boost_details"] = boost_details
+    title_patterns["_avoid_details"] = avoid_details
     title_patterns["_principles"] = parsed.get("principles", [])
     title_patterns["_recommendations"] = parsed.get("recommendations", [])
+    title_patterns["_sample_count"] = sample_count
     title_patterns["_generated_at"] = datetime.now(timezone.utc).isoformat()
 
     # ── 2단계: PD용 텍스트 ──
+    data_str = json.dumps(data, ensure_ascii=False, indent=2)
     text_prompt = f"""아래는 유튜브 채널 '양홍수 변호사'의 최근 2주 영상 성과입니다.
 
 {data_str}
@@ -149,11 +168,12 @@ PD가 기획 회의에서 참고할 피드백을 작성해주세요.
 코드블록 없이, 간결하게.
 잘 된 주제, 부진한 주제, 제목 패턴, 다음 기획 추천 3건 포함."""
 
-    system_text = "유튜브 채널 기획 어드바이저. PD에게 실무적이고 구체적인 피드백을 제공합니다."
-
     print("[feedback] 2단계: PD용 텍스트 생성...")
-    content_md = generate(system_text, text_prompt, max_tokens=1024)
-    # 코드블록 잔재물 제거
+    content_md = generate(
+        "유튜브 채널 기획 어드바이저. 실무적이고 구체적인 피드백 제공.",
+        text_prompt,
+        max_tokens=2048,
+    )
     content_md = content_md.replace("```", "").strip()
 
     # ── 저장 ──
@@ -161,14 +181,15 @@ PD가 기획 회의에서 참고할 피드백을 작성해주세요.
     sb.table("feedback").insert({
         "period": "weekly",
         "content_md": content_md,
-        "keywords_boost": boost,
-        "keywords_avoid": avoid,
+        "keywords_boost": boost_keywords,
+        "keywords_avoid": avoid_keywords,
         "title_patterns": title_patterns,
     }).execute()
 
     print(f"[feedback] 저장 완료!")
-    print(f"  boost: {boost}")
-    print(f"  avoid: {avoid}")
+    print(f"  샘플: {sample_count}개 영상")
+    print(f"  boost: {boost_keywords}")
+    print(f"  avoid: {[a.get('keyword','') + ' — ' + a.get('reason','') for a in avoid_details]}")
     print(f"  patterns: {[k for k in title_patterns if not k.startswith('_')]}")
     print(f"  principles: {len(parsed.get('principles', []))}개")
     print(f"  formula: {parsed.get('top_formula', '')}")
