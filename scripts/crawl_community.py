@@ -18,18 +18,10 @@ load_dotenv()
 
 import requests
 from bs4 import BeautifulSoup
+from lib.http_client import safe_get, fail_log, reset_fail_log
 
 # ── 설정 ──────────────────────────────────────────────
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-}
-
-REQUEST_DELAY = 1  # 초
 BODY_MAX_LEN = 1000  # 본문 최대 길이
 
 # ── 블랙리스트 / 예외 룰 (뉴스 크롤러와 동일 + 커뮤니티 추가) ──
@@ -70,21 +62,7 @@ EXCEPTION_KEYWORDS = [
 
 # ── 유틸리티 ──────────────────────────────────────────
 
-session = requests.Session()
-session.headers.update(HEADERS)
-fail_log: list[str] = []
 filter_stats = {"blacklist": 0, "empty_title": 0, "similar_dedup": 0}
-
-
-def safe_get(url: str, params=None, timeout=15) -> requests.Response | None:
-    try:
-        resp = session.get(url, params=params, timeout=timeout)
-        resp.raise_for_status()
-        time.sleep(REQUEST_DELAY)
-        return resp
-    except Exception as e:
-        fail_log.append(f"[GET 실패] {url} → {e}")
-        return None
 
 
 # ── 날짜 파싱 ─────────────────────────────────────────

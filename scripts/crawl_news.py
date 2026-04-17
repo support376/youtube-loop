@@ -18,18 +18,9 @@ load_dotenv()
 
 import requests
 from bs4 import BeautifulSoup
+from lib.http_client import safe_get, fail_log, reset_fail_log
 
 # ── 설정 ──────────────────────────────────────────────
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-}
-
-REQUEST_DELAY = 1  # 초
 
 # 인기 섹션 설정: (섹션ID, 섹션명, 수집 개수)
 POPULAR_SECTIONS = [
@@ -112,22 +103,6 @@ _SERIES_RE = re.compile(
 )
 
 # ── 유틸리티 ──────────────────────────────────────────
-
-session = requests.Session()
-session.headers.update(HEADERS)
-fail_log: list[str] = []
-
-
-def safe_get(url: str, params=None, timeout=15) -> requests.Response | None:
-    try:
-        resp = session.get(url, params=params, timeout=timeout)
-        resp.raise_for_status()
-        time.sleep(REQUEST_DELAY)
-        return resp
-    except Exception as e:
-        fail_log.append(f"[GET 실패] {url} → {e}")
-        return None
-
 
 def parse_datetime_text(text: str) -> datetime | None:
     """네이버 뉴스의 다양한 날짜 형식 파싱"""
