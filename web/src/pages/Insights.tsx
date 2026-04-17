@@ -206,7 +206,7 @@ export default function Insights() {
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12, fontSize: 13 }}
-                  formatter={(v: number) => [v.toLocaleString(), '조회수']}
+                  formatter={(v) => [Number(v).toLocaleString(), '조회수']}
                 />
                 <Bar dataKey="views" radius={[0, 8, 8, 0]} animationDuration={1200}>
                   {topicChartData.map((_, i) => (
