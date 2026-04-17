@@ -1,0 +1,37 @@
+name: Daily Stats (영상 메타 + 성과 수집)
+
+on:
+  schedule:
+    # 영상 메타: KST 14:00 = UTC 05:00
+    # 성과 수집: KST 23:00 = UTC 14:00
+    - cron: "0 5 * * *"
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+jobs:
+  fetch-videos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch new videos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: python scripts/fetch_videos.py
+
+      - name: Fetch video stats
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python scripts/fetch_stats.py
