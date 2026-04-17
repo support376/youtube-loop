@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, Check, ChevronRight, Lightbulb } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import type { Feedback } from '../hooks/useSupabase'
 
@@ -12,6 +14,62 @@ interface TitlePatterns {
   _recommendations?: { title: string; desc: string; example: string }[]
 }
 
+// ─── content_md 정리: JSON 날것 / 코드블록 / 구분선 처리 ───
+
+function cleanContent(raw: string): string {
+  let text = raw.trim()
+  // JSON인지 감지
+  if (text.startsWith('{') || text.startsWith('```')) {
+    try {
+      const cleaned = text.replace(/^```\w*\s*/gm, '').replace(/```\s*$/gm, '').trim()
+      const parsed = JSON.parse(cleaned.startsWith('{') ? cleaned : cleaned)
+      // JSON이면 읽기 좋게 변환
+      return jsonToReadable(parsed)
+    } catch {
+      // JSON 아니면 마크다운 잔재물만 정리
+    }
+  }
+  return text.replace(/^```\w*\s*/gm, '').replace(/```\s*$/gm, '').trim()
+}
+
+function jsonToReadable(obj: any): string {
+  const lines: string[] = []
+  if (obj.keywords_boost) lines.push(`## 우선 주제\n${(obj.keywords_boost as string[]).map(k => `- ${k}`).join('\n')}`)
+  if (obj.keywords_avoid) lines.push(`## 회피 주제\n${(obj.keywords_avoid as string[]).map(k => `- ${k}`).join('\n')}`)
+  if (obj.title_patterns) {
+    lines.push('## 제목 공식')
+    for (const [cat, examples] of Object.entries(obj.title_patterns)) {
+      if (cat.startsWith('_') || !Array.isArray(examples)) continue
+      lines.push(`**${cat}**`)
+      for (const ex of examples) lines.push(`- "${ex}"`)
+    }
+  }
+  if (obj.principles) lines.push(`## 운영 원칙\n${(obj.principles as string[]).map(p => `- ${p}`).join('\n')}`)
+  if (obj.recommendations) {
+    lines.push('## 기획 추천')
+    for (const r of obj.recommendations as any[]) {
+      lines.push(`- **${r.title}**: ${r.desc || ''}\n  → "${r.example || ''}"`)
+    }
+  }
+  if (obj.content_md) lines.push(`\n---\n\n${obj.content_md}`)
+  return lines.join('\n\n') || JSON.stringify(obj, null, 2)
+}
+
+// ─── 마크다운 렌더러 ───
+
+const mdComponents = {
+  h2: (props: ComponentPropsWithoutRef<'h2'>) => <h2 className="text-lg font-semibold mt-5 mb-2 text-[var(--text-primary)]" {...props} />,
+  h3: (props: ComponentPropsWithoutRef<'h3'>) => <h3 className="text-base font-semibold mt-4 mb-2 text-[var(--text-primary)]" {...props} />,
+  p: (props: ComponentPropsWithoutRef<'p'>) => <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-3" {...props} />,
+  strong: (props: ComponentPropsWithoutRef<'strong'>) => <strong className="text-[var(--text-primary)] font-semibold" {...props} />,
+  li: (props: ComponentPropsWithoutRef<'li'>) => <li className="text-sm text-[var(--text-secondary)] mb-1.5" {...props} />,
+  ul: (props: ComponentPropsWithoutRef<'ul'>) => <ul className="pl-5 my-2 list-disc" {...props} />,
+  hr: () => <div className="my-4 border-t border-[var(--border)]" />,
+  blockquote: (props: ComponentPropsWithoutRef<'blockquote'>) => <blockquote className="border-l-3 border-[var(--accent)] pl-4 my-3 italic text-[var(--text-secondary)]" {...props} />,
+}
+
+// ─── 메인 ───
+
 export default function FeedbackPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +79,7 @@ export default function FeedbackPage() {
     const fetchData = async () => {
       const { data } = await supabase
         .from('feedback').select('*')
-        .order('created_at', { ascending: false }).limit(10)
+        .order('created_at', { ascending: false }).limit(20)
       setFeedbacks(data || [])
       setLoading(false)
     }
@@ -33,7 +91,16 @@ export default function FeedbackPage() {
     return <div className="text-center py-20 text-[var(--text-secondary)]">아직 피드백이 없습니다.</div>
   }
 
-  const latest = feedbacks[0]
+  // 날짜별 중복 제거 (같은 날짜면 최신 1개만)
+  const seen = new Set<string>()
+  const deduped = feedbacks.filter(fb => {
+    const date = fb.created_at?.slice(0, 10) || ''
+    if (seen.has(date)) return false
+    seen.add(date)
+    return true
+  })
+
+  const latest = deduped[0]
   const boost = latest.keywords_boost || []
   const avoid = latest.keywords_avoid || []
   const tp = (latest.title_patterns || {}) as TitlePatterns
@@ -42,8 +109,14 @@ export default function FeedbackPage() {
   const avoidReasons = tp._avoid_reasons || []
   const principles = tp._principles || []
   const recommendations = tp._recommendations || []
-  const contentMd = cleanMd(latest.content_md || '')
+  const contentMd = cleanContent(latest.content_md || '')
   const updatedAt = fmtDate(latest.created_at)
+
+  // 회피 주제 + 부진 이유 매핑
+  const avoidWithReasons = avoid.map((k, i) => ({
+    keyword: k,
+    reason: avoidReasons[i] || '',
+  }))
 
   const handleCopy = async () => {
     const patternLines = patternCategories
@@ -105,7 +178,6 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
             <h3 className="font-bold text-[var(--green)]">✅ 이렇게 하세요</h3>
           </div>
           <div className="p-5 space-y-4">
-            {/* 우선 주제 */}
             <div>
               <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">우선 주제</p>
               <div className="flex flex-wrap gap-2">
@@ -115,7 +187,6 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
                 {!boost.length && <span className="text-sm text-[var(--text-secondary)]">데이터 수집 중</span>}
               </div>
             </div>
-            {/* 제목 공식 */}
             {patternCategories.length > 0 && (
               <div>
                 <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">제목 공식</p>
@@ -142,31 +213,18 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
           <div className="px-5 py-4 bg-[var(--accent-soft)] border-b border-[var(--accent)]/20">
             <h3 className="font-bold text-[var(--accent)]">❌ 이건 피하세요</h3>
           </div>
-          <div className="p-5 space-y-4">
-            {/* 회피 주제 */}
-            <div>
-              <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">회피 주제</p>
-              <div className="flex flex-wrap gap-2">
-                {avoid.map(k => (
-                  <span key={k} className="px-3 py-1.5 text-sm rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-medium">{k}</span>
-                ))}
-                {!avoid.length && <span className="text-sm text-[var(--text-secondary)]">없음</span>}
-              </div>
-            </div>
-            {/* 부진 이유 */}
-            {avoidReasons.length > 0 && (
-              <div>
-                <p className="text-xs text-[var(--text-secondary)] mb-2 uppercase tracking-wide font-semibold">부진 이유</p>
-                <div className="space-y-2">
-                  {avoidReasons.map((r, i) => (
-                    <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-[var(--bg-hover)]">
-                      <span className="text-[var(--accent)] mt-0.5 shrink-0">•</span>
-                      <p className="text-sm text-[var(--text-secondary)]">{r}</p>
-                    </div>
-                  ))}
+          <div className="p-5 space-y-3">
+            {avoidWithReasons.map((item, i) => (
+              <div key={i} className="p-3 rounded-xl bg-[var(--bg-hover)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-medium">{item.keyword}</span>
                 </div>
+                {item.reason && (
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">{item.reason}</p>
+                )}
               </div>
-            )}
+            ))}
+            {!avoid.length && <span className="text-sm text-[var(--text-secondary)]">없음</span>}
           </div>
         </motion.div>
       </div>
@@ -216,20 +274,22 @@ ${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
         )}
 
         <Accordion title="전체 원문 보기" icon="📄">
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{contentMd}</p>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+            {contentMd}
+          </ReactMarkdown>
         </Accordion>
       </div>
 
-      {/* 과거 규칙 */}
-      {feedbacks.length > 1 && (
+      {/* 과거 규칙 (날짜 dedup 적용) */}
+      {deduped.length > 1 && (
         <div>
           <h3 className="text-lg font-semibold mb-4">과거 규칙</h3>
           <div className="space-y-3">
-            {feedbacks.slice(1).map(fb => (
+            {deduped.slice(1).map(fb => (
               <Accordion key={fb.id} title={`${fmtDate(fb.created_at)} (${fb.period || 'weekly'})`} icon="📋">
-                <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
-                  {cleanMd(fb.content_md || '')}
-                </p>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                  {cleanContent(fb.content_md || '')}
+                </ReactMarkdown>
               </Accordion>
             ))}
           </div>
@@ -255,9 +315,6 @@ function Accordion({ title, icon, children, defaultOpen = false }: {
   )
 }
 
-function cleanMd(raw: string) {
-  return raw.replace(/^```\s*/gm, '').replace(/```\s*$/gm, '').replace(/^---$/gm, '').trim()
-}
 function fmtDate(d: string) { return d?.slice(0, 10).replace(/-/g, '.') || '' }
 
 function LoadingSkeleton() {
