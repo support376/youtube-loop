@@ -109,12 +109,15 @@ export default function Videos() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v, i) => {
             const rank = rankMap.get(v.id) || 0
+            const borderColor = rank === 1 ? 'border-[#ff4b4b]' : rank === 2 ? 'border-[#ff8a3b]' : rank === 3 ? 'border-[#ffc53b]' : 'border-[var(--border)]'
+            const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : ''
+
             return (
               <motion.div key={v.id}
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05, duration: 0.4 }}
                 onClick={() => setEmbedId(v.id)}
-                className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden cursor-pointer hover:border-[var(--accent)] transition group"
+                className={`rounded-2xl bg-[var(--bg-card)] border-2 overflow-hidden cursor-pointer hover:border-[var(--accent)] transition group ${borderColor}`}
               >
                 <div className="relative">
                   {v.thumbnail_url ? (
@@ -125,27 +128,21 @@ export default function Videos() {
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/40">
                     <Play size={32} className="text-white" />
                   </div>
-                  {/* 유형 뱃지 */}
-                  <span className={`absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full text-white ${
-                    v.video_type === 'short' ? 'bg-[var(--accent)]' : 'bg-blue-600'
-                  }`}>
-                    {v.video_type === 'short' ? '숏' : '롱'}
-                  </span>
-                  {/* 순위 뱃지 */}
-                  {rank <= 3 && (
-                    <div className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                      rank === 1 ? 'bg-[#ff4b4b]' : rank === 2 ? 'bg-[#ff8a3b]' : 'bg-[#ffc53b]'
-                    }`}>
-                      {rank}
-                    </div>
-                  )}
                 </div>
                 <div className="p-4">
-                  <p className="font-medium text-sm line-clamp-2 mb-2">{v.title}</p>
-                  <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
-                    <span>조회수 {v.views.toLocaleString()}</span>
-                    <span>좋아요 {v.likes.toLocaleString()}</span>
-                    <span>{fmtDate(v.published_at)}</span>
+                  <div className="flex items-start gap-2 mb-2">
+                    {rankEmoji && <span className="text-lg shrink-0">{rankEmoji}</span>}
+                    <p className="font-medium text-sm line-clamp-2">{v.title}</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                      v.video_type === 'short' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-blue-500/15 text-blue-400'
+                    }`}>
+                      {v.video_type === 'short' ? 'SHORT' : 'LONG'}
+                    </span>
+                    <span>{v.views.toLocaleString()} 조회</span>
+                    <span>{v.likes.toLocaleString()} 좋아요</span>
+                    <span className="ml-auto">{fmtDate(v.published_at)}</span>
                   </div>
                 </div>
               </motion.div>
