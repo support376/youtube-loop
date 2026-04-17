@@ -29,11 +29,7 @@ latest = feedbacks[0]
 st.subheader("최신 피드백")
 st.caption(f"생성일: {latest['created_at'][:10] if latest.get('created_at') else ''}")
 st.markdown(latest.get("content_md", ""))
-
-# --- 전체 복사 버튼 ---
-copy_text = latest.get("content_md", "")
-st.code(copy_text, language=None)
-st.caption("위 텍스트를 선택 → 복사 → 코워크에 붙여넣기")
+st.caption("위 텍스트를 선택 → 복사 → 코워���에 붙여넣기")
 
 # --- 성과 키워드 ---
 boost = latest.get("keywords_boost") or []
