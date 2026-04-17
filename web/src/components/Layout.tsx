@@ -1,8 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BarChart3, Users, Film, Brain, RefreshCw } from 'lucide-react'
+import { BarChart3, Users, Film, Brain, RefreshCw, Newspaper } from 'lucide-react'
 
 const tabs = [
   { to: '/', label: 'Overview', icon: BarChart3 },
+  { to: '/crawling', label: 'Crawling', icon: Newspaper },
   { to: '/editors', label: 'Editors', icon: Users },
   { to: '/videos', label: 'Videos', icon: Film },
   { to: '/insights', label: 'Insights', icon: Brain },
