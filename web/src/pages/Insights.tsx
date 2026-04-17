@@ -1,7 +1,91 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import type { WeeklyReport } from '../hooks/useSupabase'
+
+// --- 마크다운을 섹션(## 기준)별로 분리 ---
+function splitSections(md: string): { title: string; body: string }[] {
+  const lines = md.split('\n')
+  const sections: { title: string; body: string[] }[] = []
+  let current: { title: string; body: string[] } | null = null
+
+  for (const line of lines) {
+    const h2 = line.match(/^## (.+)/)
+    if (h2) {
+      if (current) sections.push(current)
+      current = { title: h2[1], body: [] }
+    } else if (current) {
+      current.body.push(line)
+    }
+    // h1이나 --- 앞의 내용은 스킵 (제목/날짜)
+  }
+  if (current) sections.push(current)
+
+  return sections.map(s => ({
+    title: s.title,
+    body: s.body.join('\n').replace(/^---$/gm, '').trim(),
+  }))
+}
+
+// --- 섹션 아이콘 매핑 ---
+function sectionIcon(title: string): string {
+  if (/TOP/.test(title)) return '🏆'
+  if (/주제/.test(title)) return '🔥'
+  if (/제목/.test(title)) return '✍️'
+  if (/추천|기획/.test(title)) return '🎯'
+  if (/인사이트/.test(title)) return '💡'
+  return '📊'
+}
+
+// --- 커스텀 마크다운 컴포넌트 ---
+const mdComponents = {
+  table: (props: ComponentPropsWithoutRef<'table'>) => (
+    <div className="overflow-x-auto my-4">
+      <table className="w-full text-sm border-collapse" {...props} />
+    </div>
+  ),
+  thead: (props: ComponentPropsWithoutRef<'thead'>) => (
+    <thead className="border-b border-[var(--border)]" {...props} />
+  ),
+  th: (props: ComponentPropsWithoutRef<'th'>) => (
+    <th className="text-left p-3 text-[var(--text-secondary)] font-medium text-xs uppercase" {...props} />
+  ),
+  td: (props: ComponentPropsWithoutRef<'td'>) => (
+    <td className="p-3 border-b border-[var(--border)] text-[var(--text-secondary)]" {...props} />
+  ),
+  tr: (props: ComponentPropsWithoutRef<'tr'>) => (
+    <tr className="hover:bg-[var(--bg-hover)] transition" {...props} />
+  ),
+  hr: () => (
+    <div className="my-6 border-t border-[var(--border)]" />
+  ),
+  blockquote: (props: ComponentPropsWithoutRef<'blockquote'>) => (
+    <blockquote className="border-l-3 border-[var(--accent)] pl-4 my-3 text-[var(--text-secondary)] italic" {...props} />
+  ),
+  strong: (props: ComponentPropsWithoutRef<'strong'>) => (
+    <strong className="text-[var(--text-primary)] font-semibold" {...props} />
+  ),
+  h3: (props: ComponentPropsWithoutRef<'h3'>) => (
+    <h3 className="text-base font-semibold mt-5 mb-2 text-[var(--text-primary)]" {...props} />
+  ),
+  h4: (props: ComponentPropsWithoutRef<'h4'>) => (
+    <h4 className="text-sm font-semibold mt-4 mb-1 text-[var(--text-primary)]" {...props} />
+  ),
+  p: (props: ComponentPropsWithoutRef<'p'>) => (
+    <p className="text-[var(--text-secondary)] leading-relaxed mb-3" {...props} />
+  ),
+  li: (props: ComponentPropsWithoutRef<'li'>) => (
+    <li className="text-[var(--text-secondary)] mb-1.5 leading-relaxed" {...props} />
+  ),
+  ul: (props: ComponentPropsWithoutRef<'ul'>) => (
+    <ul className="pl-5 my-2 list-disc" {...props} />
+  ),
+  ol: (props: ComponentPropsWithoutRef<'ol'>) => (
+    <ol className="pl-5 my-2 list-decimal" {...props} />
+  ),
+}
 
 export default function Insights() {
   const [reports, setReports] = useState<WeeklyReport[]>([])
@@ -9,7 +93,7 @@ export default function Insights() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       const { data } = await supabase
         .from('weekly_reports')
         .select('*')
@@ -18,10 +102,20 @@ export default function Insights() {
       setReports(data || [])
       setLoading(false)
     }
-    fetch()
+    fetchData()
   }, [])
 
-  if (loading) return <div className="animate-pulse h-64 bg-[var(--bg-card)] rounded-2xl" />
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 w-48 bg-[var(--bg-card)] rounded" />
+        <div className="h-12 bg-[var(--bg-card)] rounded-full" />
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-48 bg-[var(--bg-card)] rounded-2xl" />
+        ))}
+      </div>
+    )
+  }
 
   if (!reports.length) {
     return (
@@ -32,6 +126,7 @@ export default function Insights() {
   }
 
   const report = reports[selected]
+  const sections = splitSections(report.report_md || '')
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -54,38 +149,51 @@ export default function Insights() {
         ))}
       </div>
 
-      {/* 리포트 본문 */}
-      <motion.div
-        key={report.id}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6"
-      >
-        <div
-          className="prose prose-invert prose-sm max-w-none
-            [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-3
-            [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-2
-            [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2
-            [&_p]:text-[var(--text-secondary)] [&_p]:leading-relaxed [&_p]:mb-3
-            [&_li]:text-[var(--text-secondary)] [&_li]:mb-1
-            [&_strong]:text-[var(--text-primary)]
-            [&_ul]:pl-5 [&_ol]:pl-5"
-          dangerouslySetInnerHTML={{ __html: markdownToHtml(report.report_md || '') }}
-        />
-      </motion.div>
+      {/* 섹션별 카드 */}
+      {sections.map((section, i) => (
+        <motion.div
+          key={`${report.id}-${i}`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.1, duration: 0.4 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden"
+        >
+          {/* 카드 헤더 */}
+          <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-3">
+            <span className="text-xl">{sectionIcon(section.title)}</span>
+            <h3 className="text-base font-semibold">{section.title}</h3>
+          </div>
+
+          {/* 카드 본문 */}
+          <div className="px-6 py-5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+              {section.body}
+            </ReactMarkdown>
+          </div>
+        </motion.div>
+      ))}
 
       {/* TOP 영상 */}
       {report.top_videos && (
-        <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6">
-          <h3 className="text-lg font-semibold mb-3">TOP 영상</h3>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: sections.length * 0.1 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6"
+        >
+          <h3 className="text-lg font-semibold mb-4">🏅 TOP 영상</h3>
           {(report.top_videos as any[]).map((v: any, i: number) => (
-            <div key={i} className="flex items-center gap-3 py-2">
-              <span className="text-[var(--accent)] font-bold text-lg">{i + 1}</span>
-              <span className="flex-1">{v.title}</span>
-              <span className="text-sm text-[var(--text-secondary)]">조회수 {(v.views || 0).toLocaleString()}</span>
+            <div key={i} className="flex items-center gap-4 py-3 border-b border-[var(--border)] last:border-0">
+              <span className={`text-2xl font-bold ${i === 0 ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'}`}>
+                {i + 1}
+              </span>
+              <span className="flex-1 text-sm">{v.title}</span>
+              <span className="text-sm text-[var(--text-secondary)] tabular-nums">
+                {(v.views || 0).toLocaleString()} 회
+              </span>
             </div>
           ))}
-        </div>
+        </motion.div>
       )}
     </motion.div>
   )
@@ -93,18 +201,4 @@ export default function Insights() {
 
 function fmtDate(d: string) {
   return d?.replace(/-/g, '.') || ''
-}
-
-function markdownToHtml(md: string): string {
-  return md
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^\- (.+)$/gm, '<li>$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-    .replace(/^(?!<[hulo])(.+)/gm, '<p>$1</p>')
 }
