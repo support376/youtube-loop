@@ -71,7 +71,7 @@ function extractTopicChart(body: string): { name: string; views: number }[] {
 }
 
 const CHART_COLORS = ['#ff4b4b', '#ff6b6b', '#ff8a8a', '#ffa8a8', '#ccc', '#aaa']
-const RANK_COLORS = ['#ff4b4b', '#ff8a3b', '#ffc53b']
+// 순위 색상은 카드 테두리로 적용
 
 interface TopVideo {
   id: string; title: string; thumbnail_url: string; views: number; likes: number; video_type: string
