@@ -9,7 +9,6 @@ interface Props {
 
 export default function MetricCard({ label, value, delta, suffix = '' }: Props) {
   const isPositive = delta !== undefined && delta > 0
-  const isNegative = delta !== undefined && delta < 0
 
   return (
     <motion.div

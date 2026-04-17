@@ -17,7 +17,7 @@ export default function Overview() {
       const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString()
       const twoWeeksAgo = new Date(now.getTime() - 14 * 86400000).toISOString()
 
-      const [vRes, sRes, pvRes, psRes] = await Promise.all([
+      const [vRes, sRes, , psRes] = await Promise.all([
         supabase.from('videos').select('*').gte('published_at', weekAgo).order('published_at', { ascending: false }),
         supabase.from('video_stats').select('*').order('fetched_at', { ascending: false }),
         supabase.from('videos').select('id').gte('published_at', twoWeeksAgo).lt('published_at', weekAgo),
