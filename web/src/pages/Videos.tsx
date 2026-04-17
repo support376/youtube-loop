@@ -6,11 +6,14 @@ import type { Video, VideoStats } from '../hooks/useSupabase'
 import AnimatedBar from '../components/AnimatedBar'
 import VideoEmbed from '../components/VideoEmbed'
 
+type TypeFilter = 'all' | 'short' | 'long'
+
 export default function Videos() {
   const [videos, setVideos] = useState<Video[]>([])
   const [stats, setStats] = useState<VideoStats[]>([])
   const [loading, setLoading] = useState(true)
   const [embedId, setEmbedId] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
 
   useEffect(() => {
     const fetch = async () => {
@@ -35,7 +38,17 @@ export default function Videos() {
     return { ...v, views: s?.views || 0, likes: s?.likes || 0, comments: s?.comments || 0 }
   })
 
-  const top10 = [...merged].sort((a, b) => b.views - a.views).slice(0, 10)
+  // 순위 매기기 (전체 기준)
+  const ranked = [...merged].sort((a, b) => b.views - a.views)
+  const rankMap = new Map(ranked.map((v, i) => [v.id, i + 1]))
+
+  // 유형 필터 적용
+  const filtered = typeFilter === 'all' ? merged : merged.filter(v => v.video_type === typeFilter)
+  const shortCount = merged.filter(v => v.video_type === 'short').length
+  const longCount = merged.filter(v => v.video_type === 'long').length
+
+  // TOP 10 바 차트
+  const top10 = [...filtered].sort((a, b) => b.views - a.views).slice(0, 10)
   const top3Ids = new Set(top10.slice(0, 3).map(v => v.id))
   const barItems = [...top10].reverse().map(v => ({
     label: v.title.slice(0, 25),
@@ -44,22 +57,14 @@ export default function Videos() {
   }))
   const maxValue = Math.max(...barItems.map(b => b.value), 1)
 
-  // 숏폼 vs 롱폼
-  const shorts = merged.filter(v => v.video_type === 'short')
-  const longs = merged.filter(v => v.video_type === 'long')
-  const typeData = [
-    { type: '숏폼', count: shorts.length, avgViews: shorts.length ? Math.round(shorts.reduce((a, v) => a + v.views, 0) / shorts.length) : 0 },
-    { type: '롱폼', count: longs.length, avgViews: longs.length ? Math.round(longs.reduce((a, v) => a + v.views, 0) / longs.length) : 0 },
-  ]
-
   // 제목 패턴
   const questionRe = /\?|일까|인가|할까|인지|나요/
   const numberRe = /\d+/
   const warningRe = /주의|경고|위험|조심|충격|논란|폭로/
   const patterns = [
-    { name: '질문형', items: merged.filter(v => questionRe.test(v.title)) },
-    { name: '숫자 포함', items: merged.filter(v => numberRe.test(v.title)) },
-    { name: '경고/논란형', items: merged.filter(v => warningRe.test(v.title)) },
+    { name: '질문형', items: filtered.filter(v => questionRe.test(v.title)) },
+    { name: '숫자 포함', items: filtered.filter(v => numberRe.test(v.title)) },
+    { name: '경고/논란형', items: filtered.filter(v => warningRe.test(v.title)) },
   ].filter(p => p.items.length > 0).map(p => ({
     패턴: p.name,
     영상수: p.items.length,
@@ -68,7 +73,27 @@ export default function Videos() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-      <h2 className="text-2xl font-bold">영상 성과</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2 className="text-2xl font-bold">영상 성과</h2>
+
+        {/* 유형 필터 */}
+        <div className="flex gap-2">
+          {([
+            ['all', `전체 (${merged.length})`],
+            ['short', `숏폼 (${shortCount})`],
+            ['long', `롱폼 (${longCount})`],
+          ] as [TypeFilter, string][]).map(([value, label]) => (
+            <button key={value} onClick={() => setTypeFilter(value)}
+              className={`px-4 py-2 text-sm rounded-full transition ${
+                typeFilter === value
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* TOP 10 바 차트 */}
       <div>
@@ -76,58 +101,56 @@ export default function Videos() {
         <AnimatedBar items={barItems} maxValue={maxValue} />
       </div>
 
-      {/* 영상 카드 그리드 (클릭 시 임베드) */}
+      {/* 영상 카드 그리드 */}
       <div>
-        <h3 className="text-lg font-semibold mb-4">전체 영상</h3>
+        <h3 className="text-lg font-semibold mb-4">
+          {typeFilter === 'all' ? '전체 영상' : typeFilter === 'short' ? '숏폼 영상' : '롱폼 영상'}
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {merged.map((v, i) => (
-            <motion.div
-              key={v.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05, duration: 0.4 }}
-              onClick={() => setEmbedId(v.id)}
-              className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden cursor-pointer hover:border-[var(--accent)] transition group"
-            >
-              <div className="relative">
-                {v.thumbnail_url ? (
-                  <img src={v.thumbnail_url} alt={v.title} className="w-full aspect-video object-cover" />
-                ) : (
-                  <div className="w-full aspect-video bg-[var(--bg-hover)]" />
-                )}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/40">
-                  <Play size={40} className="text-white" />
+          {filtered.map((v, i) => {
+            const rank = rankMap.get(v.id) || 0
+            return (
+              <motion.div key={v.id}
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.4 }}
+                onClick={() => setEmbedId(v.id)}
+                className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden cursor-pointer hover:border-[var(--accent)] transition group"
+              >
+                <div className="relative">
+                  {v.thumbnail_url ? (
+                    <img src={v.thumbnail_url} alt={v.title} className="w-full aspect-video object-cover" />
+                  ) : (
+                    <div className="w-full aspect-video bg-[var(--bg-hover)]" />
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/40">
+                    <Play size={32} className="text-white" />
+                  </div>
+                  {/* 유형 뱃지 */}
+                  <span className={`absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full text-white ${
+                    v.video_type === 'short' ? 'bg-[var(--accent)]' : 'bg-blue-600'
+                  }`}>
+                    {v.video_type === 'short' ? '숏' : '롱'}
+                  </span>
+                  {/* 순위 뱃지 */}
+                  {rank <= 3 && (
+                    <div className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                      rank === 1 ? 'bg-[#ff4b4b]' : rank === 2 ? 'bg-[#ff8a3b]' : 'bg-[#ffc53b]'
+                    }`}>
+                      {rank}
+                    </div>
+                  )}
                 </div>
-                <span className={`absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full ${
-                  v.video_type === 'short' ? 'bg-[var(--accent)]' : 'bg-blue-600'
-                } text-white`}>
-                  {v.video_type === 'short' ? '숏' : '롱'}
-                </span>
-              </div>
-              <div className="p-4">
-                <p className="font-medium text-sm line-clamp-2 mb-2">{v.title}</p>
-                <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
-                  <span>조회수 {v.views.toLocaleString()}</span>
-                  <span>좋아요 {v.likes.toLocaleString()}</span>
-                  <span>{fmtDate(v.published_at)}</span>
+                <div className="p-4">
+                  <p className="font-medium text-sm line-clamp-2 mb-2">{v.title}</p>
+                  <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
+                    <span>조회수 {v.views.toLocaleString()}</span>
+                    <span>좋아요 {v.likes.toLocaleString()}</span>
+                    <span>{fmtDate(v.published_at)}</span>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* 숏폼 vs 롱폼 */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">숏폼 vs 롱폼</h3>
-        <div className="grid grid-cols-2 gap-4">
-          {typeData.map(t => (
-            <div key={t.type} className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
-              <p className="text-sm text-[var(--text-secondary)]">{t.type}</p>
-              <p className="text-xl font-bold">{t.count}개</p>
-              <p className="text-sm text-[var(--text-secondary)]">평균 조회수 {t.avgViews.toLocaleString()}</p>
-            </div>
-          ))}
+              </motion.div>
+            )
+          })}
         </div>
       </div>
 
