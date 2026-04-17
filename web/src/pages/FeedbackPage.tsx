@@ -76,24 +76,15 @@ function extractRecommendations(content: string): { title: string; desc: string;
 
 export default function FeedbackPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
-  const [news, setNews] = useState<any[]>([])
-  const [community, setCommunity] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
-      const today = new Date().toISOString().slice(0, 10)
-      const [fbRes, nRes, cRes] = await Promise.all([
-        supabase.from('feedback').select('*').order('created_at', { ascending: false }).limit(10),
-        supabase.from('crawled_news').select('title, source, source_type, section, keyword, url')
-          .eq('crawl_date', today).order('created_at', { ascending: false }),
-        supabase.from('crawled_community').select('title, platform, url')
-          .eq('crawl_date', today).order('created_at', { ascending: false }),
-      ])
-      setFeedbacks(fbRes.data || [])
-      setNews(nRes.data || [])
-      setCommunity(cRes.data || [])
+      const { data } = await supabase
+        .from('feedback').select('*')
+        .order('created_at', { ascending: false }).limit(10)
+      setFeedbacks(data || [])
       setLoading(false)
     }
     fetchData()
@@ -114,31 +105,22 @@ export default function FeedbackPage() {
   const updatedAt = fmtDate(latest.created_at)
 
   const handleCopy = async () => {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
+    const text = `# YouTube Loop 성과 피드백 (매주 갱신)
+# 마지막 업데이트: ${updatedAt}
 
-    const newsText = news.map((n, i) =>
-      `${i + 1}. [${n.source_type}${n.section ? '/' + n.section : ''}${n.keyword ? '/' + n.keyword : ''}] ${n.title}\n   출처: ${n.source || '-'}\n   ${n.url}`
-    ).join('\n\n')
+## 우선 주제
+${boost.length ? boost.map(k => `- ${k}`).join('\n') : '- 없음'}
 
-    const commText = community.map((c, i) =>
-      `${i + 1}. [${c.platform}] ${c.title}\n   ${c.url}`
-    ).join('\n\n')
+## 회피 주제
+${avoid.length ? avoid.map(k => `- ${k}`).join('\n') : '- 없음'}
 
-    const text = `[기획 규칙 — YouTube Loop 자동 생성]
-우선 주제: ${boost.join(', ') || '없음'}
-회피 주제: ${avoid.join(', ') || '없음'}
-제목 공식: ${titlePatterns.join(' / ') || '없음'}
-핵심 원칙: ${principles.join(' | ') || '없음'}
+## 잘 되는 제목 공식
+${titlePatterns.length ? titlePatterns.map(p => `- ${p}`).join('\n') : '- 없음'}
 
-[오늘의 크롤링 — ${today}]
+## 운영 원칙
+${principles.length ? principles.map(p => `- ${p}`).join('\n') : '- 없음'}
 
-📰 뉴스 (${news.length}건)
-${newsText || '(오늘 크롤링 데이터 없음)'}
-
-💬 커뮤니티 (${community.length}건)
-${commText || '(오늘 크롤링 데이터 없음)'}
-
-위 규칙 적용해서 기획카드 만들어줘.`
+토픽 선정 시 위 성과 데이터 반영해서 우선순위 조정할 것.`
 
     await navigator.clipboard.writeText(text)
     setCopied(true)
@@ -156,7 +138,7 @@ ${commText || '(오늘 크롤링 데이터 없음)'}
         <button onClick={handleCopy}
           className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition shrink-0">
           {copied ? <Check size={16} /> : <Copy size={16} />}
-          {copied ? '규칙 + 크롤링 복사 완료!' : '코워크에 복사'}
+          {copied ? '복사 완료!' : '지침 복사'}
         </button>
       </div>
 
@@ -199,17 +181,14 @@ ${commText || '(오늘 크롤링 데이터 없음)'}
       {/* 복사 프리뷰 */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
         className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold">코워크 복사 내용 미리보기</p>
-          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            <span>규칙 + 크롤링 {news.length + community.length}건</span>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">지침 복사 미리보기</p>
+          <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
+            <span>✅ 우선 {boost.length}개</span>
+            <span>❌ 회피 {avoid.length}개</span>
+            <span>✍️ 제목 {titlePatterns.length}개</span>
+            <span>💡 원칙 {principles.length}개</span>
           </div>
-        </div>
-        <div className="flex gap-6 text-xs text-[var(--text-secondary)]">
-          <span>📰 뉴스 {news.length}건</span>
-          <span>💬 커뮤니티 {community.length}건</span>
-          <span>✅ 우선 {boost.length}개</span>
-          <span>❌ 회피 {avoid.length}개</span>
         </div>
       </motion.div>
 
