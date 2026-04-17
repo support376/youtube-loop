@@ -2,9 +2,10 @@ import { useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip, PieChart, Pie } from 'recharts'
 import { supabase } from '../lib/supabase'
 import type { WeeklyReport } from '../hooks/useSupabase'
+import { ChevronRight } from 'lucide-react'
 
 // ─── 마크다운 파서 ───
 
@@ -25,7 +26,6 @@ function splitSections(md: string): { title: string; body: string }[] {
   return sections.map(s => ({ title: s.title, body: s.body.join('\n').replace(/^---$/gm, '').trim() }))
 }
 
-// 마크다운 테이블에서 데이터 추출
 function parseTable(md: string): { headers: string[]; rows: string[][] } {
   const lines = md.split('\n').filter(l => l.trim().startsWith('|'))
   if (lines.length < 3) return { headers: [], rows: [] }
@@ -33,31 +33,22 @@ function parseTable(md: string): { headers: string[]; rows: string[][] } {
   return { headers: parse(lines[0]), rows: lines.slice(2).map(parse) }
 }
 
-// 🔥/❄️ 인사이트 라인 추출
 function extractInsights(body: string): { icon: string; text: string }[] {
   const results: { icon: string; text: string }[] = []
   for (const line of body.split('\n')) {
     const m = line.match(/^[-*]\s*(🔥|❄️|💡|⚠️|✅)\s*\*\*(.+?)\*\*(.*)/)
-    if (m) {
-      results.push({ icon: m[1], text: m[2] + m[3].replace(/\*\*/g, '') })
-    }
+    if (m) results.push({ icon: m[1], text: m[2] + m[3].replace(/\*\*/g, '') })
   }
   return results
 }
 
-// 공통점에서 태그 추출
 function extractTags(body: string): { icon: string; label: string }[] {
   const tags: { icon: string; label: string }[] = []
   const tagMap: [RegExp, string, string][] = [
-    [/쇼츠|shorts/i, '🎬', '쇼츠'],
-    [/질문형|의심|역설|모순/i, '❓', '질문형 제목'],
-    [/생활\s*밀착|실생활|누구나/i, '🏠', '생활밀착'],
-    [/이혼|재산/i, '💔', '이혼·재산'],
-    [/논란|사건|인물/i, '🔥', '논란 인물'],
-    [/면죄부|처벌|무죄/i, '⚖️', '면죄부 의심'],
-    [/숫자|수치/i, '🔢', '숫자 포함'],
-    [/갈등|상식.*반/i, '💥', '갈등 구조'],
-    [/롱폼|long/i, '🎥', '롱폼'],
+    [/쇼츠|shorts/i, '🎬', '쇼츠'], [/질문형|의심|역설|모순/i, '❓', '질문형 제목'],
+    [/생활\s*밀착|실생활|누구나/i, '🏠', '생활밀착'], [/이혼|재산/i, '💔', '이혼·재산'],
+    [/논란|사건|인물/i, '🔥', '논란 인물'], [/면죄부|처벌|무죄/i, '⚖️', '면죄부 의심'],
+    [/갈등|상식.*반/i, '💥', '갈등 구조'], [/롱폼|long/i, '🎥', '롱폼'],
   ]
   for (const [re, icon, label] of tagMap) {
     if (re.test(body)) tags.push({ icon, label })
@@ -65,7 +56,6 @@ function extractTags(body: string): { icon: string; label: string }[] {
   return tags.length ? tags : [{ icon: '📊', label: '분석 완료' }]
 }
 
-// 주제 테이블에서 차트 데이터 추출
 function extractTopicChart(body: string): { name: string; views: number }[] {
   const { headers, rows } = parseTable(body)
   if (!headers.length) return []
@@ -83,35 +73,28 @@ function extractTopicChart(body: string): { name: string; views: number }[] {
 const CHART_COLORS = ['#ff4b4b', '#ff6b6b', '#ff8a8a', '#ffa8a8', '#ccc', '#aaa']
 const RANK_COLORS = ['#ff4b4b', '#ff8a3b', '#ffc53b']
 
-// ─── 컴포넌트 ───
-
 interface TopVideo {
-  id: string
-  title: string
-  thumbnail_url: string
-  views: number
-  likes: number
+  id: string; title: string; thumbnail_url: string; views: number; likes: number; video_type: string
 }
+
+// ─── 메인 ───
 
 export default function Insights() {
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(true)
   const [topVideos, setTopVideos] = useState<TopVideo[]>([])
+  const [allVideos, setAllVideos] = useState<TopVideo[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
       const [repRes, vidRes, statsRes] = await Promise.all([
-        supabase.from('weekly_reports').select('*')
-          .order('week_start', { ascending: false }).limit(20),
-        supabase.from('videos').select('id, title, thumbnail_url')
-          .order('published_at', { ascending: false }),
-        supabase.from('video_stats').select('video_id, views, likes')
-          .order('fetched_at', { ascending: false }),
+        supabase.from('weekly_reports').select('*').order('week_start', { ascending: false }).limit(20),
+        supabase.from('videos').select('id, title, thumbnail_url, video_type').order('published_at', { ascending: false }),
+        supabase.from('video_stats').select('video_id, views, likes').order('fetched_at', { ascending: false }),
       ])
       setReports(repRes.data || [])
 
-      // DB에서 실시간 TOP 3 계산
       const latestStats = new Map<string, { views: number; likes: number }>()
       for (const s of (statsRes.data || [])) {
         if (!latestStats.has(s.video_id)) latestStats.set(s.video_id, s)
@@ -123,7 +106,7 @@ export default function Insights() {
       }))
       merged.sort((a, b) => b.views - a.views)
       setTopVideos(merged.slice(0, 3))
-
+      setAllVideos(merged)
       setLoading(false)
     }
     fetchData()
@@ -139,14 +122,30 @@ export default function Insights() {
   const topSection = sections.find(s => /TOP/.test(s.title))
   const topicSection = sections.find(s => /주제/.test(s.title))
   const titleSection = sections.find(s => /제목/.test(s.title))
-  const recommendSection = sections.find(s => /추천|기획/.test(s.title))
-  const otherSections = sections.filter(s =>
-    s !== topSection && s !== topicSection && s !== titleSection && s !== recommendSection
-  )
+  const poorSection = sections.find(s => /부진/.test(s.title))
+  const shortLongSection = sections.find(s => /숏폼|롱폼|vs/i.test(s.title))
+  const insightSection = sections.find(s => /인사이트/.test(s.title))
+  const displayedSections = new Set([topSection, topicSection, titleSection, poorSection, shortLongSection, insightSection])
+  const otherSections = sections.filter(s => !displayedSections.has(s) && !/추천|기획/.test(s.title))
 
   const topicChartData = topicSection ? extractTopicChart(topicSection.body) : []
   const tags = topSection ? extractTags(topSection.body) : []
-  const insights = topicSection ? extractInsights(topicSection.body) : []
+
+  // 모든 섹션에서 인사이트 추출
+  const allInsights = sections.flatMap(s => extractInsights(s.body))
+
+  // DB 기반: 숏폼 vs 롱폼
+  const shorts = allVideos.filter(v => v.video_type === 'short')
+  const longs = allVideos.filter(v => v.video_type === 'long')
+  const shortAvg = shorts.length ? Math.round(shorts.reduce((a, v) => a + v.views, 0) / shorts.length) : 0
+  const longAvg = longs.length ? Math.round(longs.reduce((a, v) => a + v.views, 0) / longs.length) : 0
+  const pieData = [
+    { name: '숏폼', value: shorts.length, fill: '#ff4b4b' },
+    { name: '롱폼', value: longs.length, fill: '#4b8bff' },
+  ].filter(d => d.value > 0)
+
+  // DB 기반: 부진 영상 (하위 3개)
+  const bottomVideos = [...allVideos].sort((a, b) => a.views - b.views).slice(0, 3)
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -176,19 +175,12 @@ export default function Insights() {
                 transition={{ delay: i * 0.15, duration: 0.5 }}
                 className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden group hover:border-[var(--accent)] transition"
               >
-                {/* 썸네일 */}
                 <div className="relative">
-                  <img
-                    src={v.thumbnail_url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
-                    alt={v.title}
-                    className="w-full aspect-video object-cover"
-                  />
+                  <img src={v.thumbnail_url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
+                    alt={v.title} className="w-full aspect-video object-cover" />
                   <div className="absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                    style={{ background: RANK_COLORS[i] || '#666' }}>
-                    {i + 1}
-                  </div>
+                    style={{ background: RANK_COLORS[i] || '#666' }}>{i + 1}</div>
                 </div>
-                {/* 정보 */}
                 <div className="p-4">
                   <p className="font-medium text-sm line-clamp-2 mb-3">{v.title}</p>
                   <div className="flex items-center gap-4">
@@ -214,13 +206,10 @@ export default function Insights() {
           <h3 className="text-lg font-semibold mb-4">🔑 공통점</h3>
           <div className="flex flex-wrap gap-3">
             {tags.map((t, i) => (
-              <motion.div key={i}
-                initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+              <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4 + i * 0.08 }}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] text-sm font-medium"
-              >
-                <span className="text-lg">{t.icon}</span>
-                {t.label}
+                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] text-sm font-medium">
+                <span className="text-lg">{t.icon}</span>{t.label}
               </motion.div>
             ))}
           </div>
@@ -237,14 +226,10 @@ export default function Insights() {
               <BarChart data={topicChartData} layout="vertical" margin={{ left: 10, right: 20 }}>
                 <XAxis type="number" tickFormatter={v => v.toLocaleString()} />
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12, fontSize: 13 }}
-                  formatter={(v) => [Number(v).toLocaleString(), '조회수']}
-                />
+                <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 12, fontSize: 13 }}
+                  formatter={(v) => [Number(v).toLocaleString(), '조회수']} />
                 <Bar dataKey="views" radius={[0, 8, 8, 0]} animationDuration={1200}>
-                  {topicChartData.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i] || '#555'} />
-                  ))}
+                  {topicChartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i] || '#555'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -252,123 +237,139 @@ export default function Insights() {
         </motion.div>
       )}
 
-      {/* ④ 핵심 인사이트 강조 박스 */}
-      {insights.length > 0 && (
-        <div>
+      {/* ④ 숏폼 vs 롱폼 (DB 직접 계산) */}
+      {pieData.length > 1 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6">
+          <h3 className="text-lg font-semibold mb-4">🎬 숏폼 vs 롱폼</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-center">
+            <div className="h-40 sm:col-span-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={60}
+                    animationDuration={1000} label={({ name, value }) => `${name} ${value}`}>
+                    {pieData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="sm:col-span-2 grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20">
+                <p className="text-xs text-[var(--text-secondary)]">숏폼 ({shorts.length}개)</p>
+                <p className="text-xl font-bold mt-1">평균 {shortAvg.toLocaleString()}<span className="text-xs font-normal text-[var(--text-secondary)]"> 조회</span></p>
+              </div>
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <p className="text-xs text-[var(--text-secondary)]">롱폼 ({longs.length}개)</p>
+                <p className="text-xl font-bold mt-1">평균 {longAvg.toLocaleString()}<span className="text-xs font-normal text-[var(--text-secondary)]"> 조회</span></p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ⑤ 부진 영상 (DB 하위 3개) */}
+      {bottomVideos.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6">
+          <h3 className="text-lg font-semibold mb-4">❄️ 부진 영상</h3>
+          <div className="space-y-3">
+            {bottomVideos.map((v, i) => (
+              <div key={v.id} className="flex items-center gap-4 p-3 rounded-xl bg-[var(--bg-hover)]">
+                <span className="text-blue-400 font-bold w-6 text-center">{allVideos.length - i}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate">{v.title}</p>
+                </div>
+                <span className="text-sm tabular-nums text-[var(--text-secondary)]">{v.views.toLocaleString()}뷰</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ⑥ 핵심 인사이트 강조 박스 */}
+      {allInsights.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
           <h3 className="text-lg font-semibold mb-4">💡 핵심 인사이트</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {insights.slice(0, 4).map((ins, i) => (
-              <motion.div key={i}
-                initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 + i * 0.1 }}
+            {allInsights.slice(0, 6).map((ins, i) => (
+              <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.9 + i * 0.08 }}
                 className={`rounded-2xl p-5 border ${
                   ins.icon === '🔥' ? 'bg-[var(--accent-soft)] border-[var(--accent)]'
                     : ins.icon === '❄️' ? 'bg-blue-500/10 border-blue-500/30'
                     : 'bg-[var(--green-soft)] border-[var(--green)]/30'
-                }`}
-              >
+                }`}>
                 <span className="text-2xl">{ins.icon}</span>
                 <p className="text-sm font-medium mt-2 leading-relaxed">{ins.text}</p>
               </motion.div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ⑤ 제목 패턴 (접기) */}
-      {titleSection && (
-        <motion.details initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden">
-          <summary className="px-6 py-4 cursor-pointer hover:bg-[var(--bg-hover)] transition font-semibold flex items-center gap-2">
-            <span>✍️</span> {titleSection.title}
-          </summary>
-          <div className="px-6 py-5 border-t border-[var(--border)]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-              {titleSection.body}
-            </ReactMarkdown>
-          </div>
-        </motion.details>
-      )}
-
-      {/* ⑥ 추천 기획 */}
-      {recommendSection && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }}
-          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2">
-            <span className="text-xl">🎯</span>
-            <h3 className="font-semibold">{recommendSection.title}</h3>
-          </div>
-          <div className="px-6 py-5">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-              {recommendSection.body}
-            </ReactMarkdown>
-          </div>
         </motion.div>
       )}
 
-      {/* 기타 섹션 (접기) */}
-      {otherSections.map((section, i) => (
-        <details key={i} className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden">
-          <summary className="px-6 py-4 cursor-pointer hover:bg-[var(--bg-hover)] transition font-semibold text-sm text-[var(--text-secondary)]">
-            {section.title}
-          </summary>
-          <div className="px-6 py-5 border-t border-[var(--border)]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-              {section.body}
-            </ReactMarkdown>
-          </div>
-        </details>
-      ))}
+      {/* 상세 분석 아코디언 (모두 접기) */}
+      <div className="space-y-3">
+        {titleSection && (
+          <Accordion title={titleSection.title} icon="✍️">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{titleSection.body}</ReactMarkdown>
+          </Accordion>
+        )}
+        {poorSection && (
+          <Accordion title={poorSection.title} icon="❄️">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{poorSection.body}</ReactMarkdown>
+          </Accordion>
+        )}
+        {shortLongSection && (
+          <Accordion title={shortLongSection.title} icon="🎬">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{shortLongSection.body}</ReactMarkdown>
+          </Accordion>
+        )}
+        {insightSection && (
+          <Accordion title={insightSection.title} icon="💡">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{insightSection.body}</ReactMarkdown>
+          </Accordion>
+        )}
+        {otherSections.map((section, i) => (
+          <Accordion key={i} title={section.title} icon="📊">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{section.body}</ReactMarkdown>
+          </Accordion>
+        ))}
+      </div>
     </motion.div>
   )
 }
 
-// ─── 마크다운 커스텀 렌더러 ───
+// ─── 서브 컴포넌트 ───
 
-const mdComponents = {
-  table: (props: ComponentPropsWithoutRef<'table'>) => (
-    <div className="overflow-x-auto my-4"><table className="w-full text-sm border-collapse" {...props} /></div>
-  ),
-  thead: (props: ComponentPropsWithoutRef<'thead'>) => (
-    <thead className="border-b border-[var(--border)]" {...props} />
-  ),
-  th: (props: ComponentPropsWithoutRef<'th'>) => (
-    <th className="text-left p-3 text-[var(--text-secondary)] font-medium text-xs" {...props} />
-  ),
-  td: (props: ComponentPropsWithoutRef<'td'>) => (
-    <td className="p-3 border-b border-[var(--border)] text-[var(--text-secondary)]" {...props} />
-  ),
-  tr: (props: ComponentPropsWithoutRef<'tr'>) => (
-    <tr className="hover:bg-[var(--bg-hover)] transition" {...props} />
-  ),
-  hr: () => <div className="my-6 border-t border-[var(--border)]" />,
-  blockquote: (props: ComponentPropsWithoutRef<'blockquote'>) => (
-    <blockquote className="border-l-3 border-[var(--accent)] pl-4 my-3 text-[var(--text-secondary)] italic" {...props} />
-  ),
-  strong: (props: ComponentPropsWithoutRef<'strong'>) => (
-    <strong className="text-[var(--text-primary)] font-semibold" {...props} />
-  ),
-  h3: (props: ComponentPropsWithoutRef<'h3'>) => (
-    <h3 className="text-base font-semibold mt-5 mb-2 text-[var(--text-primary)]" {...props} />
-  ),
-  h4: (props: ComponentPropsWithoutRef<'h4'>) => (
-    <h4 className="text-sm font-semibold mt-4 mb-1 text-[var(--text-primary)]" {...props} />
-  ),
-  p: (props: ComponentPropsWithoutRef<'p'>) => (
-    <p className="text-[var(--text-secondary)] leading-relaxed mb-3" {...props} />
-  ),
-  li: (props: ComponentPropsWithoutRef<'li'>) => (
-    <li className="text-[var(--text-secondary)] mb-1.5 leading-relaxed" {...props} />
-  ),
-  ul: (props: ComponentPropsWithoutRef<'ul'>) => (
-    <ul className="pl-5 my-2 list-disc" {...props} />
-  ),
-  ol: (props: ComponentPropsWithoutRef<'ol'>) => (
-    <ol className="pl-5 my-2 list-decimal" {...props} />
-  ),
+function Accordion({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+  return (
+    <details className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden group">
+      <summary className="px-6 py-4 cursor-pointer hover:bg-[var(--bg-hover)] transition flex items-center gap-3">
+        <ChevronRight size={16} className="text-[var(--text-secondary)] transition-transform group-open:rotate-90" />
+        <span className="text-lg">{icon}</span>
+        <span className="font-semibold text-sm">{title}</span>
+      </summary>
+      <div className="px-6 py-5 border-t border-[var(--border)]">{children}</div>
+    </details>
+  )
 }
 
-// ─── 유틸 ───
+const mdComponents = {
+  table: (props: ComponentPropsWithoutRef<'table'>) => (<div className="overflow-x-auto my-4"><table className="w-full text-sm border-collapse" {...props} /></div>),
+  thead: (props: ComponentPropsWithoutRef<'thead'>) => (<thead className="border-b border-[var(--border)]" {...props} />),
+  th: (props: ComponentPropsWithoutRef<'th'>) => (<th className="text-left p-3 text-[var(--text-secondary)] font-medium text-xs" {...props} />),
+  td: (props: ComponentPropsWithoutRef<'td'>) => (<td className="p-3 border-b border-[var(--border)] text-[var(--text-secondary)]" {...props} />),
+  tr: (props: ComponentPropsWithoutRef<'tr'>) => (<tr className="hover:bg-[var(--bg-hover)] transition" {...props} />),
+  hr: () => <div className="my-6 border-t border-[var(--border)]" />,
+  blockquote: (props: ComponentPropsWithoutRef<'blockquote'>) => (<blockquote className="border-l-3 border-[var(--accent)] pl-4 my-3 text-[var(--text-secondary)] italic" {...props} />),
+  strong: (props: ComponentPropsWithoutRef<'strong'>) => (<strong className="text-[var(--text-primary)] font-semibold" {...props} />),
+  h3: (props: ComponentPropsWithoutRef<'h3'>) => (<h3 className="text-base font-semibold mt-5 mb-2 text-[var(--text-primary)]" {...props} />),
+  h4: (props: ComponentPropsWithoutRef<'h4'>) => (<h4 className="text-sm font-semibold mt-4 mb-1 text-[var(--text-primary)]" {...props} />),
+  p: (props: ComponentPropsWithoutRef<'p'>) => (<p className="text-[var(--text-secondary)] leading-relaxed mb-3" {...props} />),
+  li: (props: ComponentPropsWithoutRef<'li'>) => (<li className="text-[var(--text-secondary)] mb-1.5 leading-relaxed" {...props} />),
+  ul: (props: ComponentPropsWithoutRef<'ul'>) => (<ul className="pl-5 my-2 list-disc" {...props} />),
+  ol: (props: ComponentPropsWithoutRef<'ol'>) => (<ol className="pl-5 my-2 list-decimal" {...props} />),
+}
 
 function fmtDate(d: string) { return d?.replace(/-/g, '.') || '' }
 
