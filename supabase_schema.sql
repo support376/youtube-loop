@@ -168,3 +168,21 @@ INSERT INTO score_weights (preset_name, weights, is_active) VALUES
      '{"화제성":30,"법률연결성":25,"시청자실익":10,"수익성":15,"경쟁도":10,"지속성":10}'::jsonb,
      TRUE)
 ON CONFLICT DO NOTHING;
+
+-- ===== Phase 2-1: 기획안 AI 생성 컬럼 추가 =====
+-- planning_cards 에 Claude API 응답 저장용 필드 추가
+ALTER TABLE planning_cards
+    ADD COLUMN IF NOT EXISTS style           TEXT,                          -- 경고형/질문형/손해방지형/사실단언형
+    ADD COLUMN IF NOT EXISTS special_tags    TEXT[] DEFAULT ARRAY[]::TEXT[],-- 양변전문영역/톤주의/검증필요
+    ADD COLUMN IF NOT EXISTS one_line        TEXT,                          -- 한 줄 결론
+    ADD COLUMN IF NOT EXISTS evidence        JSONB,                         -- 근거 배열
+    ADD COLUMN IF NOT EXISTS case_study      TEXT,
+    ADD COLUMN IF NOT EXISTS closing         TEXT,
+    ADD COLUMN IF NOT EXISTS source_name     TEXT,
+    ADD COLUMN IF NOT EXISTS source_url      TEXT,
+    ADD COLUMN IF NOT EXISTS guide           TEXT,                          -- 양변 가이드 (nullable)
+    ADD COLUMN IF NOT EXISTS talking_points  JSONB,                         -- 훅/사실/케이스팁/마무리/피할것
+    ADD COLUMN IF NOT EXISTS format          TEXT DEFAULT 'shorts';         -- shorts | long
+
+CREATE INDEX IF NOT EXISTS idx_planning_cards_format ON planning_cards(format);
+CREATE INDEX IF NOT EXISTS idx_planning_cards_created ON planning_cards(created_at DESC);
