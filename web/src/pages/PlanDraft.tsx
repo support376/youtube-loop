@@ -281,7 +281,7 @@ export default function PlanDraft() {
           {generating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              기획안 생성 중... (30초~1분)
+              기획안 생성 중... (20~40초)
             </>
           ) : (
             <>
