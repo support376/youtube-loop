@@ -105,3 +105,66 @@ CREATE TABLE IF NOT EXISTS feedback (
 CREATE INDEX IF NOT EXISTS idx_crawled_news_date ON crawled_news(crawl_date);
 CREATE INDEX IF NOT EXISTS idx_crawled_community_date ON crawled_community(crawl_date);
 CREATE INDEX IF NOT EXISTS idx_videos_published ON videos(published_at);
+
+-- ===== Phase 2: 탭 구조 확장용 테이블 =====
+
+-- 9. topics (영상/크롤링 주제 태그)
+CREATE TABLE IF NOT EXISTS topics (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    content_type    TEXT NOT NULL,                                -- 'video' | 'news' | 'community'
+    content_id      TEXT NOT NULL,
+    issue_tags      TEXT[] DEFAULT ARRAY[]::TEXT[],
+    legal_tags      TEXT[] DEFAULT ARRAY[]::TEXT[],
+    tagged_at       TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_topics_content ON topics(content_type, content_id);
+
+-- 10. leads (리드 추적)
+CREATE TABLE IF NOT EXISTS leads (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phone           TEXT,
+    name            TEXT,
+    source_content  TEXT,
+    channel         TEXT,
+    status          TEXT DEFAULT '리드',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. planning_cards (기획안)
+CREATE TABLE IF NOT EXISTS planning_cards (
+    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title                   TEXT NOT NULL,
+    topic_summary           TEXT,
+    recommendation_reason   TEXT,
+    shorts_fit              INTEGER DEFAULT 0,                    -- 0~5 별점
+    score_total             REAL,
+    score_detail            JSONB,                                -- { 화제성, 법률연결성, ... }
+    source_crawl_id         UUID,
+    status                  TEXT DEFAULT '초안',                  -- 초안/승인/수정중/보류/폐기
+    linked_video_id         TEXT,
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_planning_cards_status ON planning_cards(status);
+
+-- 12. score_weights (스코어링 가중치 프리셋)
+CREATE TABLE IF NOT EXISTS score_weights (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    preset_name     TEXT NOT NULL,
+    weights         JSONB NOT NULL,
+    is_active       BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- score_weights 기본 프리셋 3개
+INSERT INTO score_weights (preset_name, weights, is_active) VALUES
+    ('바이럴 모드',
+     '{"화제성":40,"법률연결성":20,"시청자실익":10,"수익성":10,"경쟁도":10,"지속성":10}'::jsonb,
+     FALSE),
+    ('수임 모드',
+     '{"화제성":15,"법률연결성":25,"시청자실익":10,"수익성":30,"경쟁도":10,"지속성":10}'::jsonb,
+     FALSE),
+    ('기본',
+     '{"화제성":30,"법률연결성":25,"시청자실익":10,"수익성":15,"경쟁도":10,"지속성":10}'::jsonb,
+     TRUE)
+ON CONFLICT DO NOTHING;
