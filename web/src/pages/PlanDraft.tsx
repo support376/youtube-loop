@@ -18,14 +18,6 @@ import { supabase } from '../lib/supabase'
 // ─── 타입 ───
 type CardStatus = '초안' | '승인' | '수정중' | '보류' | '폐기'
 
-interface TalkingPoints {
-  hook?: string
-  facts?: string[]
-  case_tip?: string
-  closing_idea?: string
-  avoid?: string
-}
-
 interface PlanningCardRow {
   id: string
   title: string
@@ -44,7 +36,6 @@ interface PlanningCardRow {
   source_name: string | null
   source_url: string | null
   guide: string | null
-  talking_points: TalkingPoints | null
   format: 'shorts' | 'long' | null
   created_at: string
 }
@@ -60,7 +51,6 @@ interface GeneratedShortsCard {
   source_name: string
   source_url: string
   guide: string | null
-  talking_points: TalkingPoints
   scores: Record<string, number>
   shorts_fit: number
   format: 'shorts'
@@ -218,7 +208,6 @@ export default function PlanDraft() {
         source_name: c.source_name,
         source_url: c.source_url,
         guide: c.guide,
-        talking_points: c.talking_points,
         format: 'shorts',
       }))
       const longRows = json.data.long_candidates.map(l => ({
@@ -227,7 +216,6 @@ export default function PlanDraft() {
         recommendation_reason: l.description,
         status: '초안',
         format: 'long',
-        talking_points: { related_shorts: l.related_shorts },
       }))
 
       const { error: insErr } = await supabase
@@ -437,7 +425,7 @@ function Card({
         className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition self-start"
       >
         <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-        {open ? '접기' : '근거·사례·토킹포인트 보기'}
+        {open ? '접기' : '근거·사례·가이드 보기'}
       </button>
 
       <AnimatePresence initial={false}>
@@ -466,7 +454,6 @@ function Card({
                   {card.guide}
                 </Section>
               )}
-              {card.talking_points && <TalkingPointsView tp={card.talking_points} />}
               {card.source_url && (
                 <a
                   href={card.source_url}
@@ -624,42 +611,6 @@ function Section({
         {title}
       </p>
       <div className="text-sm text-[var(--text-primary)] leading-relaxed">{children}</div>
-    </div>
-  )
-}
-
-// ─── 토킹 포인트 ───
-function TalkingPointsView({ tp }: { tp: TalkingPoints }) {
-  return (
-    <div className="rounded-xl bg-[var(--bg-hover)] p-3 space-y-2">
-      <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
-        토킹 포인트
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-        {tp.hook && <TPLine label="훅" value={tp.hook} />}
-        {tp.case_tip && <TPLine label="사례 팁" value={tp.case_tip} />}
-        {tp.closing_idea && <TPLine label="마무리" value={tp.closing_idea} />}
-        {tp.avoid && <TPLine label="피할 것" value={tp.avoid} />}
-      </div>
-      {tp.facts && tp.facts.length > 0 && (
-        <div>
-          <p className="text-[10px] font-semibold text-[var(--text-secondary)] mt-1">핵심 사실</p>
-          <ul className="list-disc pl-4 text-xs text-[var(--text-secondary)]">
-            {tp.facts.map((f, i) => (
-              <li key={i}>{f}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TPLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="text-[10px] text-[var(--text-secondary)] mr-1">{label}</span>
-      <span>{value}</span>
     </div>
   )
 }
