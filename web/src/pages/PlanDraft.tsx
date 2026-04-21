@@ -332,7 +332,7 @@ export default function PlanDraft() {
               <p className="font-semibold mb-2">아직 기획안이 없습니다</p>
               <p className="text-sm text-[var(--text-secondary)] leading-relaxed max-w-md mx-auto">
                 위의 <span className="font-medium">기획안 생성</span> 버튼을 누르면 오늘 크롤링 + 피드백 규칙
-                기준으로 Claude가 쇼츠 15개 + 롱폼 3~4개를 만들어줍니다.
+                기준으로 Claude가 쇼츠 10개 + 롱폼 3~4개를 만들어줍니다.
               </p>
             </div>
           )}
