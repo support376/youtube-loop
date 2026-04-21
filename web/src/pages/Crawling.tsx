@@ -1,6 +1,14 @@
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Copy, Check, Newspaper, MessageCircle, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Copy,
+  Check,
+  Newspaper,
+  MessageCircle,
+  ChevronDown,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface NewsItem {
@@ -31,6 +39,8 @@ function today() {
   return d.toISOString().slice(0, 10)
 }
 
+type Toast = { type: 'success' | 'error' | 'info'; message: string }
+
 export default function Crawling() {
   const [news, setNews] = useState<NewsItem[]>([])
   const [community, setCommunity] = useState<CommunityItem[]>([])
@@ -38,29 +48,106 @@ export default function Crawling() {
   const [date, setDate] = useState(today())
   const [copied, setCopied] = useState(false)
   const [tab, setTab] = useState<'news' | 'community'>('news')
+  const [triggering, setTriggering] = useState(false)
+  const [toast, setToast] = useState<Toast | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = (t: Toast, durationMs = 4000) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast(t)
+    toastTimer.current = setTimeout(() => setToast(null), durationMs)
+  }
+
+  const fetchForDate = async (d: string) => {
+    setLoading(true)
+    const [nRes, cRes] = await Promise.all([
+      supabase
+        .from('crawled_news')
+        .select('id, title, url, source, source_type, section, keyword, freshness, pub_date, body')
+        .eq('crawl_date', d)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('crawled_community')
+        .select('id, title, url, platform, freshness, post_date, body')
+        .eq('crawl_date', d)
+        .order('created_at', { ascending: false }),
+    ])
+    setNews(dedupByUrl(nRes.data || []))
+    setCommunity(dedupByUrl(cRes.data || []))
+    setLoading(false)
+  }
+
+  const countForDate = async (d: string): Promise<number> => {
+    const [n, c] = await Promise.all([
+      supabase.from('crawled_news').select('*', { count: 'exact', head: true }).eq('crawl_date', d),
+      supabase.from('crawled_community').select('*', { count: 'exact', head: true }).eq('crawl_date', d),
+    ])
+    return (n.count ?? 0) + (c.count ?? 0)
+  }
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      const [nRes, cRes] = await Promise.all([
-        supabase
-          .from('crawled_news')
-          .select('id, title, url, source, source_type, section, keyword, freshness, pub_date, body')
-          .eq('crawl_date', date)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('crawled_community')
-          .select('id, title, url, platform, freshness, post_date, body')
-          .eq('crawl_date', date)
-          .order('created_at', { ascending: false }),
-      ])
-      // URL 기준 중복 제거 (프론트)
-      setNews(dedupByUrl(nRes.data || []))
-      setCommunity(dedupByUrl(cRes.data || []))
-      setLoading(false)
-    }
-    fetchData()
+    fetchForDate(date)
   }, [date])
+
+  const runCrawl = async () => {
+    const todayStr = today()
+    const baseline = await countForDate(todayStr)
+
+    if (baseline > 0) {
+      const ok = window.confirm(
+        `오늘 데이터가 이미 ${baseline}건 있습니다. 다시 실행할까요?`,
+      )
+      if (!ok) return
+    }
+
+    setTriggering(true)
+    try {
+      const resp = await fetch('/api/trigger-crawl', { method: 'POST' })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.message || err.error || `HTTP ${resp.status}`)
+      }
+
+      showToast({ type: 'info', message: '크롤러 실행됨 · 완료까지 2~3분 걸려요' }, 6000)
+
+      // 폴링: 5초 간격 × 최대 36회 (3분)
+      const maxAttempts = 36
+      let attempts = 0
+      const poll = async () => {
+        attempts += 1
+        try {
+          const current = await countForDate(todayStr)
+          if (current > baseline) {
+            if (date !== todayStr) setDate(todayStr) // effect가 재조회
+            else await fetchForDate(todayStr)
+            showToast({
+              type: 'success',
+              message: `크롤링 완료 · ${current - baseline}건 추가됨`,
+            })
+            setTriggering(false)
+            return
+          }
+        } catch {
+          // 폴링 실패는 무시하고 재시도
+        }
+
+        if (attempts >= maxAttempts) {
+          showToast({
+            type: 'error',
+            message: '아직 완료되지 않았어요. 잠시 후 새로고침 해보세요.',
+          }, 6000)
+          setTriggering(false)
+          return
+        }
+        setTimeout(poll, 5000)
+      }
+      setTimeout(poll, 5000)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({ type: 'error', message: `실패: ${message}` }, 6000)
+      setTriggering(false)
+    }
+  }
 
   const handleCopy = async () => {
     const newsText = news.map((n, i) => {
@@ -87,16 +174,43 @@ export default function Crawling() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">오늘의 크롤링</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl px-4 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+          <button onClick={runCrawl} disabled={triggering}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] transition disabled:opacity-60">
+            {triggering
+              ? <Loader2 size={16} className="animate-spin" />
+              : <RefreshCw size={16} />}
+            {triggering ? '크롤링 중...' : '크롤링 실행'}
+          </button>
           <button onClick={handleCopy} disabled={totalCount === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-40">
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--bg-hover)] transition disabled:opacity-40">
             {copied ? <Check size={16} /> : <Copy size={16} />}
             {copied ? '복사 완료!' : '전문 복사'}
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.message}
+            initial={{ opacity: 0, y: -12, x: 12 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-medium backdrop-blur-md ${
+              toast.type === 'success'
+                ? 'bg-[var(--green-soft)] border-[var(--green)]/30 text-[var(--green)]'
+                : toast.type === 'error'
+                ? 'bg-[var(--red-soft)] border-[var(--red)]/30 text-[var(--red)]'
+                : 'bg-[var(--accent-soft)] border-[var(--accent)]/30 text-[var(--accent)]'
+            }`}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-4">
