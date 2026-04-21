@@ -158,9 +158,10 @@ export default function DataManagement() {
             className="flex-1 bg-transparent outline-none text-sm placeholder:text-[var(--text-muted)]"
           />
         </div>
-        <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex flex-wrap gap-6">
           <FilterGroup
             label="타입"
+            tone="purple"
             value={typeFilter}
             onChange={v => setTypeFilter(v as TypeFilter)}
             options={[
@@ -169,16 +170,16 @@ export default function DataManagement() {
               ['long', '롱폼'],
             ]}
           />
-          <div className="w-px h-5 bg-[var(--border)]" aria-hidden />
           <FilterGroup
             label="편집자"
+            tone="blue"
             value={editorFilter}
             onChange={setEditorFilter}
             options={editorNames.map(n => [n, n === 'all' ? '전체' : n])}
           />
-          <div className="w-px h-5 bg-[var(--border)]" aria-hidden />
           <FilterGroup
             label="기간"
+            tone="green"
             value={dateFilter}
             onChange={v => setDateFilter(v as DateFilter)}
             options={[
@@ -353,33 +354,47 @@ function Th({
 }
 
 // ─── 필터 그룹 ───
+type FilterTone = 'purple' | 'blue' | 'green'
+
+const FILTER_TONE: Record<FilterTone, string> = {
+  purple: 'bg-[var(--accent)] border-[var(--accent)]',
+  blue: 'bg-[#3B82F6] border-[#3B82F6]',
+  green: 'bg-[var(--green)] border-[var(--green)]',
+}
+
 function FilterGroup({
   label,
   value,
   onChange,
   options,
+  tone = 'purple',
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   options: [string, string][]
+  tone?: FilterTone
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[11px] uppercase tracking-wider text-[var(--text-muted)] mr-2 font-semibold">{label}</span>
-      {options.map(([val, text]) => (
-        <button
-          key={val}
-          onClick={() => onChange(val)}
-          className={`px-3.5 py-1.5 text-[13px] rounded-lg transition border ${
-            value === val
-              ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
-              : 'bg-transparent border-[var(--border-card)] text-[var(--text-secondary)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)]'
-          }`}
-        >
-          {text}
-        </button>
-      ))}
+    <div className="flex flex-col">
+      <span className="text-[11px] uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1.5 font-semibold">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(([val, text]) => (
+          <button
+            key={val}
+            onClick={() => onChange(val)}
+            className={`px-3.5 py-1.5 text-[13px] rounded-lg transition border ${
+              value === val
+                ? `${FILTER_TONE[tone]} text-white`
+                : 'bg-transparent border-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
