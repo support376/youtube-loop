@@ -70,7 +70,7 @@ function extractTopicChart(body: string): { name: string; views: number }[] {
   }).filter(d => d.views > 0).sort((a, b) => b.views - a.views)
 }
 
-const CHART_COLORS = ['#ff4b4b', '#ff6b6b', '#ff8a8a', '#ffa8a8', '#ccc', '#aaa']
+const CHART_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#94A3B8', '#64748B']
 // 순위 색상은 카드 테두리로 적용
 
 interface TopVideo {

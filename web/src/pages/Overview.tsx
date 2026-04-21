@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Play } from 'lucide-react'
+import { Play, Eye, ThumbsUp, MessageCircle, Film } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Video, VideoStats } from '../hooks/useSupabase'
 import MetricCard from '../components/MetricCard'
@@ -102,10 +102,10 @@ export default function Overview() {
       <div>
         <h2 className="text-2xl font-bold mb-4">이번 주 핵심 지표</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="조회수" value={twViews.toLocaleString()} delta={twViews - pwViews} prevValue={pwViews} delay={0} />
-          <MetricCard label="좋아요" value={twLikes.toLocaleString()} delta={twLikes - pwLikes} prevValue={pwLikes} delay={0.05} />
-          <MetricCard label="댓글" value={twComments.toLocaleString()} delta={twComments - pwComments} prevValue={pwComments} delay={0.1} />
-          <MetricCard label="영상 수" value={`${thisWeekVideos.length}`} suffix="개" delta={thisWeekVideos.length - pwIds.size} prevValue={pwIds.size} delay={0.15} />
+          <MetricCard icon={Eye} label="조회수" value={twViews.toLocaleString()} delta={twViews - pwViews} prevValue={pwViews} delay={0} />
+          <MetricCard icon={ThumbsUp} label="좋아요" value={twLikes.toLocaleString()} delta={twLikes - pwLikes} prevValue={pwLikes} delay={0.05} />
+          <MetricCard icon={MessageCircle} label="댓글" value={twComments.toLocaleString()} delta={twComments - pwComments} prevValue={pwComments} delay={0.1} />
+          <MetricCard icon={Film} label="영상 수" value={`${thisWeekVideos.length}`} suffix="개" delta={thisWeekVideos.length - pwIds.size} prevValue={pwIds.size} delay={0.15} />
         </div>
       </div>
 

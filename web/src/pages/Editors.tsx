@@ -5,7 +5,7 @@ import { Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Video, VideoStats, Editor } from '../hooks/useSupabase'
 
-const COLORS = ['#ff4b4b', '#4b8bff', '#22c55e', '#f59e0b']
+const COLORS = ['#8B5CF6', '#EC4899', '#22C55E', '#F59E0B']
 
 export default function Editors() {
   const [editors, setEditors] = useState<Editor[]>([])

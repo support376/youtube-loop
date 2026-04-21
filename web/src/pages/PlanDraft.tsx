@@ -79,15 +79,15 @@ interface GenerateResponse {
 // ─── 상수 ───
 const STATUS_STYLES: Record<CardStatus, string> = {
   초안: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
-  승인: 'bg-[var(--green-soft)] text-[var(--green)]',
+  승인: 'bg-[var(--accent-soft)] text-[var(--accent)]',
   수정중: 'bg-amber-500/15 text-amber-400',
-  보류: 'bg-slate-500/15 text-slate-400',
-  폐기: 'bg-[var(--red-soft)] text-[var(--red)]',
+  보류: 'border border-[var(--border)] text-[var(--text-secondary)]',
+  폐기: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
 }
 
 const STYLE_COLORS: Record<string, string> = {
   경고형: 'bg-[var(--accent)]/15 text-[var(--accent)]',
-  질문형: 'bg-violet-500/15 text-violet-400',
+  질문형: 'bg-fuchsia-500/15 text-fuchsia-400',
   손해방지형: 'bg-amber-500/15 text-amber-400',
   사실단언형: 'bg-[var(--green)]/15 text-[var(--green)]',
 }
@@ -354,7 +354,7 @@ export default function PlanDraft() {
               <p className="font-semibold mb-2">아직 기획안이 없습니다</p>
               <p className="text-sm text-[var(--text-secondary)] leading-relaxed max-w-md mx-auto">
                 위의 <span className="font-medium">기획안 생성</span> 버튼을 누르면 오늘 크롤링 + 피드백 규칙
-                기준으로 Claude가 쇼츠 10개 + 롱폼 3~4개를 만들어줍니다.
+                기준으로 Claude가 쇼츠 12개 + 롱폼 3~4개를 만들어줍니다.
               </p>
             </div>
           )}
@@ -383,7 +383,7 @@ function Card({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: dimmed ? 0.55 : 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5 flex flex-col gap-4"
+      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5 flex flex-col gap-4 transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
     >
       {/* 상단: 스타일/태그/상태 */}
       <div className="flex flex-wrap items-center gap-2">
@@ -543,7 +543,7 @@ function LongCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className="rounded-2xl bg-[var(--bg-card)] border border-slate-500/20 p-5 flex flex-col gap-3"
+      className="rounded-2xl bg-[var(--bg-card)] border border-slate-500/20 p-5 flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
     >
       <div className="flex items-center gap-2">
         <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-400">
@@ -679,10 +679,10 @@ function ActionBtn({
   onClick: () => void
 }) {
   const colorMap: Record<typeof color, string> = {
-    green: active ? 'bg-[var(--green)] text-white' : 'hover:bg-[var(--green-soft)] hover:text-[var(--green)]',
+    green: active ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]',
     amber: active ? 'bg-amber-500 text-white' : 'hover:bg-amber-500/15 hover:text-amber-400',
-    blue: active ? 'bg-slate-500 text-white' : 'hover:bg-slate-500/15 hover:text-slate-400',
-    red: active ? 'bg-[var(--red)] text-white' : 'hover:bg-[var(--red-soft)] hover:text-[var(--red)]',
+    blue: active ? 'border border-[var(--text-secondary)] text-[var(--text-primary)]' : 'border border-[var(--border)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+    red: active ? 'bg-[var(--text-secondary)] text-[var(--bg-primary)]' : 'hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
   }
   return (
     <button

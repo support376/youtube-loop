@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0F1117;
-  --bg-card: #1A1D2B;
-  --bg-hover: #232738;
-  --border: #2A2E3F;
+  --bg-primary: #0B0D14;
+  --bg-card: #12141F;
+  --bg-hover: #1A1D2C;
+  --border: #22263A;
   --text-primary: #F1F5F9;
   --text-secondary: #94A3B8;
-  --accent: #3B82F6;
-  --accent-soft: rgba(59, 130, 246, 0.15);
-  --accent-hover: #2563EB;
+  --accent: #8B5CF6;
+  --accent-soft: rgba(139, 92, 246, 0.15);
+  --accent-hover: #A78BFA;
   --green: #22C55E;
   --green-soft: rgba(34, 197, 94, 0.15);
   --red: #EF4444;
@@ -24,9 +24,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: #333748; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #2D3149; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3A3F5C; }
 
 .recharts-cartesian-axis-tick-value { fill: var(--text-secondary) !important; font-size: 12px; }
 .recharts-cartesian-grid line { stroke: var(--border) !important; }
