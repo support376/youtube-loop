@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check,
@@ -107,12 +107,21 @@ function calcTotal(detail: Record<string, number> | null, weights: Record<string
 }
 
 // ─── 메인 ───
+type Toast = { type: 'success' | 'error' | 'info'; message: string }
+
 export default function PlanDraft() {
   const [cards, setCards] = useState<PlanningCardRow[]>([])
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<Toast | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = (t: Toast, durationMs = 4000) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast(t)
+    toastTimer.current = setTimeout(() => setToast(null), durationMs)
+  }
 
   const loadCards = async () => {
     setLoading(true)
@@ -146,8 +155,8 @@ export default function PlanDraft() {
 
   // ─── 기획안 생성 ───
   const generate = async () => {
+    if (generating) return
     setGenerating(true)
-    setError(null)
     try {
       // 1. 오늘 크롤링
       const [newsRes, commRes, feedbackRes] = await Promise.all([
@@ -176,7 +185,7 @@ export default function PlanDraft() {
 
       // 데이터 부족 체크
       if (crawledNews.length === 0 && crawledCommunity.length === 0) {
-        setError('오늘자 크롤링 데이터가 없습니다. GitHub Actions 확인 필요.')
+        showToast({ type: 'error', message: '오늘자 크롤링 데이터가 없습니다. 크롤링 먼저 실행해주세요.' }, 6000)
         setGenerating(false)
         return
       }
@@ -232,8 +241,16 @@ export default function PlanDraft() {
       if (insErr) throw new Error(insErr.message)
 
       await loadCards()
+
+      const insertedCount = shortsRows.length + longRows.length
+      showToast({ type: 'success', message: `기획안 ${insertedCount}개 생성 완료` })
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      const isTimeout = /timeout|시간 초과|504|FUNCTION_INVOCATION_TIMEOUT|Failed to fetch/i.test(message)
+      const toastMessage = isTimeout
+        ? '시간 초과. 다시 시도해주세요'
+        : `생성 실패: ${message}`
+      showToast({ type: 'error', message: toastMessage }, 6000)
     } finally {
       setGenerating(false)
     }
@@ -288,7 +305,7 @@ export default function PlanDraft() {
           {generating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              기획안 생성 중... (20~40초)
+              기획안 생성 중... (30~60초)
             </>
           ) : (
             <>
@@ -299,15 +316,28 @@ export default function PlanDraft() {
         </button>
       </div>
 
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.message}
+            initial={{ opacity: 0, y: -12, x: 12 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-medium backdrop-blur-md ${
+              toast.type === 'success'
+                ? 'bg-[var(--green-soft)] border-[var(--green)]/30 text-[var(--green)]'
+                : toast.type === 'error'
+                ? 'bg-[var(--red-soft)] border-[var(--red)]/30 text-[var(--red)]'
+                : 'bg-[var(--accent-soft)] border-[var(--accent)]/30 text-[var(--accent)]'
+            }`}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 가중치 슬라이더 */}
       <WeightSliders weights={weights} onChange={setWeights} />
-
-      {error && (
-        <div className="rounded-xl bg-[var(--red-soft)] border border-[var(--red)]/30 p-4 text-sm">
-          <p className="font-semibold text-[var(--red)]">생성 실패</p>
-          <p className="text-[var(--text-secondary)] mt-1">{error}</p>
-        </div>
-      )}
 
       {loading ? (
         <LoadingSkeleton />
