@@ -77,6 +77,7 @@ interface Props {
   weights?: Weights
   activePresetName?: string | null
   onChange?: (w: Weights, presetName: string | null) => void
+  loading?: boolean
 }
 
 export default function WeightSliders({
@@ -84,6 +85,7 @@ export default function WeightSliders({
   weights: controlled,
   activePresetName,
   onChange,
+  loading = false,
 }: Props) {
   const [internal, setInternal] = useState<Weights>(initial)
   const [open, setOpen] = useState(true)
@@ -92,10 +94,13 @@ export default function WeightSliders({
   const weights = controlled ?? internal
 
   // 부모가 activePresetName을 명시하면 그걸 우선 사용, 아니면 weights 비교로 추론
+  // 로딩 중에는 어떤 프리셋도 하이라이트하지 않음 (DB 응답 전 오표시 방지)
   const derived = PRESETS.find(p => equalWeights(p.weights, weights))
-  const activeId = activePresetName !== undefined && activePresetName !== null
-    ? PRESETS.find(p => p.name === activePresetName)?.id ?? 'custom'
-    : derived?.id ?? 'custom'
+  const activeId = loading
+    ? ''
+    : activePresetName !== undefined && activePresetName !== null
+      ? PRESETS.find(p => p.name === activePresetName)?.id ?? 'custom'
+      : derived?.id ?? 'custom'
 
   // 최초 진입 시 초기 weights가 커스텀이면 기억
   useEffect(() => {
@@ -139,7 +144,9 @@ export default function WeightSliders({
           <Sliders size={16} className="text-[var(--accent)]" />
           <span className="font-semibold text-sm">스코어 가중치</span>
           <span className="text-xs text-[var(--text-secondary)]">
-            {PRESETS.find(p => p.id === activeId)?.name || '커스텀'} · 합계 {total}%
+            {loading
+              ? '불러오는 중...'
+              : `${PRESETS.find(p => p.id === activeId)?.name || '커스텀'} · 합계 ${total}%`}
           </span>
         </div>
         <ChevronDown
@@ -157,7 +164,11 @@ export default function WeightSliders({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-5 py-5 border-t border-[var(--border)] space-y-5">
+            <div
+              className={`px-5 py-5 border-t border-[var(--border)] space-y-5 ${
+                loading ? 'opacity-50 pointer-events-none' : ''
+              }`}
+            >
               {/* 프리셋 버튼 */}
               <div className="flex flex-wrap gap-2">
                 {[...PRESETS, { id: 'custom', name: '커스텀', weights: DEFAULT_WEIGHTS }].map(p => (

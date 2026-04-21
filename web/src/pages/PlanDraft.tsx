@@ -115,6 +115,7 @@ export default function PlanDraft() {
   const [cards, setCards] = useState<PlanningCardRow[]>([])
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS)
   const [activePresetName, setActivePresetName] = useState<string | null>(null)
+  const [weightsLoaded, setWeightsLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -152,6 +153,7 @@ export default function PlanDraft() {
       setWeights({ ...DEFAULT_WEIGHTS, ...row.weights })
       setActivePresetName(row.preset_name ?? null)
     }
+    setWeightsLoaded(true)
   }
 
   // 프리셋 클릭 시 DB의 is_active 플래그를 해당 프리셋으로 이동. 슬라이더 드래그(presetName=null)는 세션 로컬에만 반영.
@@ -419,6 +421,7 @@ export default function PlanDraft() {
         weights={weights}
         activePresetName={activePresetName}
         onChange={handleWeightsChange}
+        loading={!weightsLoaded}
       />
 
       {loading ? (
