@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check,
@@ -88,6 +88,36 @@ const STYLE_COLORS: Record<string, string> = {
   사실단언형: 'bg-[var(--green)]/15 text-[var(--green)]',
 }
 
+// ─── 가중치 프리셋 ───
+const WEIGHT_KEYS = ['화제성', '법률연결성', '시청자실익', '수익성', '경쟁도', '지속성'] as const
+type WeightKey = (typeof WEIGHT_KEYS)[number]
+type Weights = Record<WeightKey, number>
+
+const DEFAULT_WEIGHTS: Weights = {
+  화제성: 30,
+  법률연결성: 25,
+  시청자실익: 10,
+  수익성: 15,
+  경쟁도: 10,
+  지속성: 10,
+}
+const VIRAL_WEIGHTS: Weights = {
+  화제성: 40,
+  법률연결성: 15,
+  시청자실익: 10,
+  수익성: 15,
+  경쟁도: 10,
+  지속성: 10,
+}
+const INTAKE_WEIGHTS: Weights = {
+  화제성: 15,
+  법률연결성: 25,
+  시청자실익: 15,
+  수익성: 30,
+  경쟁도: 5,
+  지속성: 10,
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -102,9 +132,39 @@ function calcTotal(detail: Record<string, number> | null, weights: Record<string
   return Math.round(total)
 }
 
+// ─── 한 슬라이더가 바뀔 때 나머지를 비례 조정해 합계 100 유지 ───
+function adjustWeights(current: Weights, changedKey: WeightKey, newVal: number): Weights {
+  const clamped = Math.max(0, Math.min(100, Math.round(newVal)))
+  const otherKeys = WEIGHT_KEYS.filter(k => k !== changedKey)
+  const otherSum = otherKeys.reduce((s, k) => s + current[k], 0)
+  const remaining = 100 - clamped
+
+  const next = { ...current, [changedKey]: clamped } as Weights
+
+  if (otherSum <= 0) {
+    const per = Math.floor(remaining / otherKeys.length)
+    otherKeys.forEach(k => {
+      next[k] = per
+    })
+    const extra = remaining - per * otherKeys.length
+    if (extra) next[otherKeys[0]] += extra
+  } else {
+    const scale = remaining / otherSum
+    otherKeys.forEach(k => {
+      next[k] = Math.round(current[k] * scale)
+    })
+    const sum = WEIGHT_KEYS.reduce((s, k) => s + next[k], 0)
+    const diff = 100 - sum
+    if (diff !== 0) next[otherKeys[0]] += diff
+  }
+
+  return next
+}
+
 // ─── 메인 ───
 export default function PlanDraft() {
   const [cards, setCards] = useState<PlanningCardRow[]>([])
+  const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,8 +182,21 @@ export default function PlanDraft() {
     setLoading(false)
   }
 
+  const loadWeights = async () => {
+    const { data } = await supabase
+      .from('score_weights')
+      .select('weights')
+      .eq('is_active', true)
+      .limit(1)
+    const raw = data?.[0]?.weights as Partial<Weights> | undefined
+    if (raw) {
+      setWeights({ ...DEFAULT_WEIGHTS, ...raw })
+    }
+  }
+
   useEffect(() => {
     loadCards()
+    loadWeights()
   }, [])
 
   // ─── 기획안 생성 ───
@@ -132,7 +205,7 @@ export default function PlanDraft() {
     setError(null)
     try {
       // 1. 오늘 크롤링
-      const [newsRes, commRes, feedbackRes, weightsRes] = await Promise.all([
+      const [newsRes, commRes, feedbackRes] = await Promise.all([
         supabase
           .from('crawled_news')
           .select('title, url, source, source_type, section, keyword, body, freshness')
@@ -150,21 +223,11 @@ export default function PlanDraft() {
           .select('content_md')
           .order('created_at', { ascending: false })
           .limit(1),
-        supabase.from('score_weights').select('weights').eq('is_active', true).limit(1),
       ])
 
       const crawledNews = newsRes.data ?? []
       const crawledCommunity = commRes.data ?? []
       const feedbackMd = feedbackRes.data?.[0]?.content_md ?? ''
-      const weights: Record<string, number> =
-        (weightsRes.data?.[0]?.weights as Record<string, number>) ?? {
-          화제성: 30,
-          법률연결성: 25,
-          시청자실익: 10,
-          수익성: 15,
-          경쟁도: 10,
-          지속성: 10,
-        }
 
       // 데이터 부족 체크
       if (crawledNews.length === 0 && crawledCommunity.length === 0) {
@@ -241,14 +304,25 @@ export default function PlanDraft() {
     if (error) console.error(error)
   }
 
-  // ─── 분류 ───
-  const shortsActive = cards.filter(
-    c => c.format !== 'long' && (c.status === '초안' || c.status === '수정중'),
+  // ─── 현재 가중치로 재계산 + 정렬 ───
+  const computedCards = useMemo(
+    () =>
+      cards.map(c => ({
+        ...c,
+        computed_total: calcTotal(c.score_detail, weights),
+      })),
+    [cards, weights],
   )
-  const shortsSettled = cards.filter(
-    c => c.format !== 'long' && (c.status === '승인' || c.status === '보류' || c.status === '폐기'),
-  )
-  const longs = cards.filter(c => c.format === 'long')
+
+  const shortsActive = computedCards
+    .filter(c => c.format !== 'long' && (c.status === '초안' || c.status === '수정중'))
+    .sort((a, b) => b.computed_total - a.computed_total)
+  const shortsSettled = computedCards
+    .filter(
+      c => c.format !== 'long' && (c.status === '승인' || c.status === '보류' || c.status === '폐기'),
+    )
+    .sort((a, b) => b.computed_total - a.computed_total)
+  const longs = computedCards.filter(c => c.format === 'long')
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -279,6 +353,9 @@ export default function PlanDraft() {
           )}
         </button>
       </div>
+
+      {/* 가중치 슬라이더 */}
+      <WeightSliders weights={weights} onChange={setWeights} />
 
       {error && (
         <div className="rounded-xl bg-[var(--accent-soft)] border border-[var(--accent)]/30 p-4 text-sm">
@@ -349,7 +426,7 @@ function Card({
   onAction,
   dimmed = false,
 }: {
-  card: PlanningCardRow
+  card: PlanningCardRow & { computed_total: number }
   index: number
   onAction: (id: string, s: CardStatus) => void
   dimmed?: boolean
@@ -394,7 +471,9 @@ function Card({
       <div className="grid grid-cols-3 gap-3 py-2 border-y border-[var(--border)]">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">종합</p>
-          <p className="text-2xl font-bold tabular-nums">{card.score_total ?? '—'}</p>
+          <p className="text-2xl font-bold tabular-nums">
+            {card.score_detail ? card.computed_total : '—'}
+          </p>
         </div>
         <div>
           <p className="text-xs text-[var(--text-secondary)] mb-1">쇼츠 적합도</p>
@@ -677,6 +756,66 @@ function LoadingSkeleton() {
       {[...Array(4)].map((_, i) => (
         <div key={i} className="h-64 bg-[var(--bg-card)] rounded-2xl" />
       ))}
+    </div>
+  )
+}
+
+// ─── 가중치 슬라이더 ───
+function WeightSliders({
+  weights,
+  onChange,
+}: {
+  weights: Weights
+  onChange: (w: Weights) => void
+}) {
+  const total = WEIGHT_KEYS.reduce((s, k) => s + weights[k], 0)
+
+  const handleSlide = (key: WeightKey, val: number) => {
+    onChange(adjustWeights(weights, key, val))
+  }
+
+  const presets: { label: string; weights: Weights; hint: string }[] = [
+    { label: '바이럴', weights: VIRAL_WEIGHTS, hint: '화제성 40%' },
+    { label: '수임', weights: INTAKE_WEIGHTS, hint: '수익성 30%' },
+    { label: '기본', weights: DEFAULT_WEIGHTS, hint: '균형' },
+  ]
+
+  return (
+    <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">가중치 조절</h3>
+          <span className="text-xs text-[var(--text-secondary)] tabular-nums">합계 {total}%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {presets.map(p => (
+            <button
+              key={p.label}
+              onClick={() => onChange(p.weights)}
+              title={p.hint}
+              className="px-3 py-1 rounded-full text-xs bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] transition"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
+        {WEIGHT_KEYS.map(k => (
+          <div key={k} className="flex items-center gap-3">
+            <span className="text-xs w-20 shrink-0 text-[var(--text-secondary)]">{k}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={weights[k]}
+              onChange={e => handleSlide(k, Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]"
+            />
+            <span className="text-xs tabular-nums w-10 text-right">{weights[k]}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
