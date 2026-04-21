@@ -1,33 +1,29 @@
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import { pdf } from '@react-pdf/renderer'
+import { createElement } from 'react'
+import PdfTemplate, { type PdfCard } from '../components/PdfTemplate'
 
-// A4 페이지 크기(mm)
-const A4_WIDTH = 210
-const A4_HEIGHT = 297
+interface ExportArgs {
+  cards: PdfCard[]
+  longCards: PdfCard[]
+  date: Date
+  title?: string
+  filename: string
+}
 
-/**
- * 주어진 root 엘리먼트 안의 `.pdf-page` 각각을 1페이지씩 캡처하여 PDF로 다운로드.
- * 각 .pdf-page는 A4 비율(210×297 mm ≈ 794×1123 px @ 96DPI) 로 고정 사이즈여야 함.
- */
-export async function exportPagesToPdf(root: HTMLElement, filename: string) {
-  const pages = Array.from(root.querySelectorAll<HTMLElement>('.pdf-page'))
-  if (pages.length === 0) throw new Error('No pages to export')
+export async function exportPdfDoc({ cards, longCards, date, title, filename }: ExportArgs) {
+  if (cards.length === 0) throw new Error('No cards to export')
 
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const doc = createElement(PdfTemplate, { cards, longCards, date, title })
+  const blob = await pdf(doc).toBlob()
 
-  for (let i = 0; i < pages.length; i++) {
-    const canvas = await html2canvas(pages[i], {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      logging: false,
-      useCORS: true,
-    })
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
-    if (i > 0) pdf.addPage()
-    pdf.addImage(dataUrl, 'JPEG', 0, 0, A4_WIDTH, A4_HEIGHT, undefined, 'FAST')
-  }
-
-  pdf.save(filename)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 export function formatDatePdf(d: Date): string {

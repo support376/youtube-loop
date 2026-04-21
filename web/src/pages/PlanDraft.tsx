@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   FileDown,
 } from 'lucide-react'
-import PdfTemplate from '../components/PdfTemplate'
 import { supabase } from '../lib/supabase'
 import WeightSliders, {
   DEFAULT_WEIGHTS,
@@ -23,6 +22,14 @@ import WeightSliders, {
 
 // ─── 타입 ───
 type CardStatus = '초안' | '승인' | '수정중' | '보류' | '폐기'
+
+interface TalkingPoints {
+  hook: string
+  facts: string[]
+  case_tip: string
+  closing_idea: string
+  avoid: string
+}
 
 interface PlanningCardRow {
   id: string
@@ -42,6 +49,7 @@ interface PlanningCardRow {
   source_name: string | null
   source_url: string | null
   guide: string | null
+  talking_points: TalkingPoints | null
   format: 'shorts' | 'long' | null
   created_at: string
 }
@@ -60,6 +68,7 @@ interface GeneratedShortsCard {
   scores: Record<string, number>
   shorts_fit: number
   format: 'shorts'
+  talking_points: TalkingPoints
 }
 
 interface GeneratedLongCandidate {
@@ -120,7 +129,6 @@ export default function PlanDraft() {
   const [exporting, setExporting] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pdfRootRef = useRef<HTMLDivElement>(null)
 
   const showToast = (t: Toast, durationMs = 4000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -223,6 +231,7 @@ export default function PlanDraft() {
         source_name: c.source_name,
         source_url: c.source_url,
         guide: c.guide,
+        talking_points: c.talking_points,
         format: 'shorts',
       }))
       const longRows = json.data.long_candidates.map(l => ({
@@ -291,13 +300,13 @@ export default function PlanDraft() {
     if (approvedShorts.length === 0 || exporting) return
     setExporting(true)
     try {
-      await new Promise<void>(resolve =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      )
-      if (!pdfRootRef.current) throw new Error('PDF 템플릿 미준비')
-      const { exportPagesToPdf, formatDatePdf } = await import('../lib/exportPdf')
-      const filename = `${formatDatePdf(new Date())}_쇼츠카드.pdf`
-      await exportPagesToPdf(pdfRootRef.current, filename)
+      const { exportPdfDoc, formatDatePdf } = await import('../lib/exportPdf')
+      await exportPdfDoc({
+        cards: approvedShorts,
+        longCards: approvedLongs,
+        date: new Date(),
+        filename: `${formatDatePdf(new Date())}_쇼츠카드.pdf`,
+      })
       showToast({ type: 'success', message: 'PDF 다운로드 시작됨' })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -356,19 +365,6 @@ export default function PlanDraft() {
           </button>
         </div>
       </div>
-
-      {/* PDF 템플릿 (오프스크린 렌더 — export 시에만 마운트) */}
-      {exporting && (
-        <div style={{ position: 'fixed', left: -99999, top: 0, pointerEvents: 'none' }} aria-hidden>
-          <div ref={pdfRootRef}>
-            <PdfTemplate
-              cards={approvedShorts}
-              longCards={approvedLongs}
-              date={new Date()}
-            />
-          </div>
-        </div>
-      )}
 
       <AnimatePresence>
         {toast && (

@@ -10,7 +10,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import PdfTemplate, { type PdfCard } from '../components/PdfTemplate'
+import { type PdfCard } from '../components/PdfTemplate'
 
 interface PlanningCardRow {
   id: string
@@ -61,7 +61,6 @@ export default function PlanHistory() {
   const [exportingDate, setExportingDate] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pdfRootRef = useRef<HTMLDivElement>(null)
 
   const showToast = (t: Toast, durationMs = 4000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -95,27 +94,27 @@ export default function PlanHistory() {
     return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
   }, [cards])
 
-  const currentExportGroup = useMemo(() => {
-    if (!exportingDate) return null
-    const group = grouped.find(([d]) => d === exportingDate)
-    if (!group) return null
+  const handleExportDate = async (date: string) => {
+    if (exportingDate) return
+    const group = grouped.find(([d]) => d === date)
+    if (!group) return
     const [, list] = group
     const shorts = list.filter(c => c.format !== 'long') as unknown as PdfCard[]
     const longs = list.filter(c => c.format === 'long') as unknown as PdfCard[]
-    return { date: exportingDate, shorts, longs }
-  }, [exportingDate, grouped])
-
-  const handleExportDate = async (date: string) => {
-    if (exportingDate) return
+    if (shorts.length === 0) {
+      showToast({ type: 'error', message: '해당 날짜에 승인된 쇼츠 카드가 없습니다' })
+      return
+    }
     setExportingDate(date)
     try {
-      await new Promise<void>(resolve =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      )
-      if (!pdfRootRef.current) throw new Error('PDF 템플릿 미준비')
-      const { exportPagesToPdf } = await import('../lib/exportPdf')
-      const filename = `${date}_쇼츠카드.pdf`
-      await exportPagesToPdf(pdfRootRef.current, filename)
+      const { exportPdfDoc } = await import('../lib/exportPdf')
+      await exportPdfDoc({
+        cards: shorts,
+        longCards: longs,
+        date: new Date(date),
+        title: `양홍수 변호사 쇼츠 카드 · ${formatDateKo(date)}`,
+        filename: `${date}_쇼츠카드.pdf`,
+      })
       showToast({ type: 'success', message: 'PDF 다운로드 시작됨' })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -219,22 +218,6 @@ export default function PlanHistory() {
         </motion.section>
       ))}
 
-      {/* PDF 오프스크린 템플릿 */}
-      {currentExportGroup && (
-        <div
-          style={{ position: 'fixed', left: -99999, top: 0, pointerEvents: 'none' }}
-          aria-hidden
-        >
-          <div ref={pdfRootRef}>
-            <PdfTemplate
-              cards={currentExportGroup.shorts}
-              longCards={currentExportGroup.longs}
-              date={new Date(currentExportGroup.date)}
-              title={`양홍수 변호사 쇼츠 카드 · ${formatDateKo(currentExportGroup.date)}`}
-            />
-          </div>
-        </div>
-      )}
     </motion.div>
   )
 }
@@ -395,7 +378,7 @@ function TalkingPointsBlock({ tp }: { tp: NonNullable<PdfCard['talking_points']>
         </div>
       )}
       {tp.case_tip && <div><b className="text-[var(--text-muted)]">사례 활용 팁:</b> {tp.case_tip}</div>}
-      {tp.ending && <div><b className="text-[var(--text-muted)]">마무리 아이디어:</b> {tp.ending}</div>}
+      {tp.closing_idea && <div><b className="text-[var(--text-muted)]">마무리 아이디어:</b> {tp.closing_idea}</div>}
       {tp.avoid && <div><b className="text-[var(--text-muted)]">피하면 좋을 것:</b> {tp.avoid}</div>}
     </div>
   )
