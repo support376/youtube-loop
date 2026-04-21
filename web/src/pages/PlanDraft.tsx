@@ -427,7 +427,7 @@ export default function PlanDraft() {
         <>
           {/* 초안·수정중 */}
           {shortsActive.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="columns-1 lg:columns-2 gap-4">
               {shortsActive.map((card, i) => (
                 <Card key={card.id} card={card} index={i} onAction={updateStatus} />
               ))}
@@ -440,7 +440,7 @@ export default function PlanDraft() {
               <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-3">
                 처리 완료 ({shortsSettled.length})
               </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="columns-1 lg:columns-2 gap-4">
                 {shortsSettled.map((card, i) => (
                   <Card key={card.id} card={card} index={i} onAction={updateStatus} dimmed />
                 ))}
@@ -496,7 +496,7 @@ function Card({
       animate={{ opacity: dimmed ? 0.55 : 1, y: 0 }}
       whileHover={{ y: -4 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border-card)] p-6 flex flex-col gap-4 transition-colors hover:border-[var(--border-card-hover)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]"
+      className="break-inside-avoid mb-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-card)] p-6 flex flex-col gap-4 transition-colors hover:border-[var(--border-card-hover)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]"
     >
       {/* 상단: 스타일/태그/상태 */}
       <div className="flex flex-wrap items-center gap-2">
