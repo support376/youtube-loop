@@ -14,6 +14,10 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import WeightSliders, {
+  DEFAULT_WEIGHTS,
+  type Weights,
+} from '../components/WeightSliders'
 
 // ─── 타입 ───
 type CardStatus = '초안' | '승인' | '수정중' | '보류' | '폐기'
@@ -88,36 +92,6 @@ const STYLE_COLORS: Record<string, string> = {
   사실단언형: 'bg-[var(--green)]/15 text-[var(--green)]',
 }
 
-// ─── 가중치 프리셋 ───
-const WEIGHT_KEYS = ['화제성', '법률연결성', '시청자실익', '수익성', '경쟁도', '지속성'] as const
-type WeightKey = (typeof WEIGHT_KEYS)[number]
-type Weights = Record<WeightKey, number>
-
-const DEFAULT_WEIGHTS: Weights = {
-  화제성: 30,
-  법률연결성: 25,
-  시청자실익: 10,
-  수익성: 15,
-  경쟁도: 10,
-  지속성: 10,
-}
-const VIRAL_WEIGHTS: Weights = {
-  화제성: 40,
-  법률연결성: 15,
-  시청자실익: 10,
-  수익성: 15,
-  경쟁도: 10,
-  지속성: 10,
-}
-const INTAKE_WEIGHTS: Weights = {
-  화제성: 15,
-  법률연결성: 25,
-  시청자실익: 15,
-  수익성: 30,
-  경쟁도: 5,
-  지속성: 10,
-}
-
 function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -130,35 +104,6 @@ function calcTotal(detail: Record<string, number> | null, weights: Record<string
     0,
   )
   return Math.round(total)
-}
-
-// ─── 한 슬라이더가 바뀔 때 나머지를 비례 조정해 합계 100 유지 ───
-function adjustWeights(current: Weights, changedKey: WeightKey, newVal: number): Weights {
-  const clamped = Math.max(0, Math.min(100, Math.round(newVal)))
-  const otherKeys = WEIGHT_KEYS.filter(k => k !== changedKey)
-  const otherSum = otherKeys.reduce((s, k) => s + current[k], 0)
-  const remaining = 100 - clamped
-
-  const next = { ...current, [changedKey]: clamped } as Weights
-
-  if (otherSum <= 0) {
-    const per = Math.floor(remaining / otherKeys.length)
-    otherKeys.forEach(k => {
-      next[k] = per
-    })
-    const extra = remaining - per * otherKeys.length
-    if (extra) next[otherKeys[0]] += extra
-  } else {
-    const scale = remaining / otherSum
-    otherKeys.forEach(k => {
-      next[k] = Math.round(current[k] * scale)
-    })
-    const sum = WEIGHT_KEYS.reduce((s, k) => s + next[k], 0)
-    const diff = 100 - sum
-    if (diff !== 0) next[otherKeys[0]] += diff
-  }
-
-  return next
 }
 
 // ─── 메인 ───
@@ -756,66 +701,6 @@ function LoadingSkeleton() {
       {[...Array(4)].map((_, i) => (
         <div key={i} className="h-64 bg-[var(--bg-card)] rounded-2xl" />
       ))}
-    </div>
-  )
-}
-
-// ─── 가중치 슬라이더 ───
-function WeightSliders({
-  weights,
-  onChange,
-}: {
-  weights: Weights
-  onChange: (w: Weights) => void
-}) {
-  const total = WEIGHT_KEYS.reduce((s, k) => s + weights[k], 0)
-
-  const handleSlide = (key: WeightKey, val: number) => {
-    onChange(adjustWeights(weights, key, val))
-  }
-
-  const presets: { label: string; weights: Weights; hint: string }[] = [
-    { label: '바이럴', weights: VIRAL_WEIGHTS, hint: '화제성 40%' },
-    { label: '수임', weights: INTAKE_WEIGHTS, hint: '수익성 30%' },
-    { label: '기본', weights: DEFAULT_WEIGHTS, hint: '균형' },
-  ]
-
-  return (
-    <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">가중치 조절</h3>
-          <span className="text-xs text-[var(--text-secondary)] tabular-nums">합계 {total}%</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {presets.map(p => (
-            <button
-              key={p.label}
-              onClick={() => onChange(p.weights)}
-              title={p.hint}
-              className="px-3 py-1 rounded-full text-xs bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] transition"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
-        {WEIGHT_KEYS.map(k => (
-          <div key={k} className="flex items-center gap-3">
-            <span className="text-xs w-20 shrink-0 text-[var(--text-secondary)]">{k}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={weights[k]}
-              onChange={e => handleSlide(k, Number(e.target.value))}
-              className="flex-1 accent-[var(--accent)]"
-            />
-            <span className="text-xs tabular-nums w-10 text-right">{weights[k]}%</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

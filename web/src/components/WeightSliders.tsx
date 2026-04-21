@@ -14,7 +14,7 @@ export const WEIGHT_KEYS = [
 export type WeightKey = typeof WEIGHT_KEYS[number]
 export type Weights = Record<WeightKey, number>
 
-const DEFAULT_WEIGHTS: Weights = {
+export const DEFAULT_WEIGHTS: Weights = {
   화제성: 30,
   법률연결성: 25,
   시청자실익: 10,
@@ -69,12 +69,19 @@ function equalWeights(a: Weights, b: Weights): boolean {
 
 interface Props {
   initial?: Weights
+  weights?: Weights
   onChange?: (w: Weights) => void
 }
 
-export default function WeightSliders({ initial = DEFAULT_WEIGHTS, onChange }: Props) {
-  const [weights, setWeights] = useState<Weights>(initial)
+export default function WeightSliders({ initial = DEFAULT_WEIGHTS, weights: controlled, onChange }: Props) {
+  const [internal, setInternal] = useState<Weights>(initial)
   const [open, setOpen] = useState(true)
+
+  const weights = controlled ?? internal
+  const setWeights = (next: Weights) => {
+    if (controlled === undefined) setInternal(next)
+    onChange?.(next)
+  }
 
   const activePreset = PRESETS.find(p => equalWeights(p.weights, weights))?.id ?? 'custom'
   const total = WEIGHT_KEYS.reduce((a, k) => a + weights[k], 0)
@@ -84,13 +91,11 @@ export default function WeightSliders({ initial = DEFAULT_WEIGHTS, onChange }: P
     const preset = PRESETS.find(p => p.id === id)
     if (!preset) return
     setWeights(preset.weights)
-    onChange?.(preset.weights)
   }
 
   const handleSlide = (key: WeightKey, v: number) => {
     const next = rebalance(weights, key, v)
     setWeights(next)
-    onChange?.(next)
   }
 
   return (

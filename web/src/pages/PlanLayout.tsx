@@ -1,6 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { Newspaper, FileEdit, RefreshCw, Archive } from 'lucide-react'
-import WeightSliders from '../components/WeightSliders'
 
 const SUBTABS = [
   { to: '/plan/crawling', label: '크롤링', icon: Newspaper },
@@ -11,12 +10,15 @@ const SUBTABS = [
 
 export default function PlanLayout() {
   return (
-    <div className="space-y-6">
-      {/* 가중치 슬라이더 (기획 섹션 공용) */}
-      <WeightSliders />
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">기획</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1.5">
+          크롤링 데이터 기반 쇼츠 기획안을 생성하고 관리합니다
+        </p>
+      </div>
 
-      {/* 서브탭 */}
-      <div className="flex gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-hide">
+      <div className="flex gap-1 items-center overflow-x-auto scrollbar-hide -mx-1 px-1">
         {SUBTABS.map(t => {
           const Icon = t.icon
           return (
@@ -24,14 +26,14 @@ export default function PlanLayout() {
               key={t.to}
               to={t.to}
               className={({ isActive }) =>
-                `flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${
+                `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                   isActive
-                    ? 'text-[var(--accent)] border-[var(--accent)]'
-                    : 'text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]'
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 }`
               }
             >
-              <Icon size={15} />
+              <Icon size={13} />
               {t.label}
             </NavLink>
           )
