@@ -117,6 +117,11 @@ export default function DataManagement() {
     return arr
   }, [filtered, sortKey, sortDir])
 
+  const avgViews = useMemo(() => {
+    if (sorted.length === 0) return 0
+    return sorted.reduce((a, r) => a + r.views, 0) / sorted.length
+  }, [sorted])
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
     else {
@@ -189,7 +194,7 @@ export default function DataManagement() {
       <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs text-[var(--text-secondary)] border-b border-[var(--border)]">
+            <thead className="text-xs text-[var(--text-secondary)] border-b border-[var(--border)] bg-[rgba(0,0,0,0.2)]">
               <tr>
                 <Th label="제목" sortKey="title" current={sortKey} dir={sortDir} onSort={toggleSort} />
                 <Th label="타입" center />
@@ -208,8 +213,8 @@ export default function DataManagement() {
                   <Fragment key={r.id}>
                     <tr
                       onClick={() => setExpandedId(expanded ? null : r.id)}
-                      className={`border-b border-[var(--border)] cursor-pointer hover:bg-[var(--bg-hover)] transition ${
-                        expanded ? 'bg-[var(--bg-hover)]' : ''
+                      className={`border-b border-[var(--border)] cursor-pointer hover:bg-[var(--accent-glow)] transition ${
+                        expanded ? 'bg-[var(--accent-glow)]' : ''
                       }`}
                     >
                       <td className="py-3 px-3 max-w-md">
@@ -248,7 +253,11 @@ export default function DataManagement() {
                       <td className="py-3 px-3 text-right text-[var(--text-secondary)] tabular-nums">
                         {fmtDate(r.published_at)}
                       </td>
-                      <td className="py-3 px-3 text-right tabular-nums">{r.views.toLocaleString()}</td>
+                      <td className={`py-3 px-3 text-right tabular-nums ${
+                        r.views >= avgViews
+                          ? 'text-[var(--text-primary)] font-semibold'
+                          : 'text-[var(--text-secondary)]'
+                      }`}>{r.views.toLocaleString()}</td>
                       <td className="py-3 px-3 text-right tabular-nums text-[var(--text-secondary)]">
                         {r.likes.toLocaleString()}
                       </td>

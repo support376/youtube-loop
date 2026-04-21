@@ -24,9 +24,9 @@ function NavItem({ tab, onClick }: { tab: NavTab; onClick?: () => void }) {
       to={tab.to}
       onClick={onClick}
       className={({ isActive }) =>
-        `relative flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        `relative flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
           isActive
-            ? 'text-[var(--text-primary)] bg-[var(--bg-hover)]'
+            ? 'text-[var(--text-primary)] bg-[var(--accent-soft)]'
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]/60'
         }`
       }
@@ -34,7 +34,7 @@ function NavItem({ tab, onClick }: { tab: NavTab; onClick?: () => void }) {
       {({ isActive }) => (
         <>
           {isActive && (
-            <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r-full bg-[var(--accent)]" />
+            <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)]" />
           )}
           <Icon size={15} className={isActive ? 'text-[var(--accent)]' : ''} />
           <span>{tab.label}</span>
@@ -76,7 +76,7 @@ export default function Layout() {
             Circle21 · 양홍수 변호사
           </p>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {TOP_TABS.map(tab => (
             <NavItem key={tab.to} tab={tab} />
           ))}
@@ -91,7 +91,7 @@ export default function Layout() {
       {/* Mobile overlay menu */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-x-0 top-[53px] bottom-0 z-30 bg-[var(--bg-primary)] overflow-y-auto">
-          <nav className="px-3 py-4 space-y-0.5">
+          <nav className="px-3 py-4 space-y-1">
             {TOP_TABS.map(tab => (
               <NavItem key={tab.to} tab={tab} onClick={closeMobile} />
             ))}

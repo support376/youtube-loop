@@ -4,12 +4,13 @@
   --bg-primary: #0B0D14;
   --bg-card: #12141F;
   --bg-hover: #1A1D2C;
-  --border: #22263A;
+  --border: rgba(255, 255, 255, 0.06);
   --text-primary: #F1F5F9;
   --text-secondary: #94A3B8;
   --accent: #8B5CF6;
   --accent-soft: rgba(139, 92, 246, 0.15);
   --accent-hover: #A78BFA;
+  --accent-glow: rgba(139, 92, 246, 0.08);
   --green: #22C55E;
   --green-soft: rgba(34, 197, 94, 0.15);
   --red: #EF4444;
@@ -26,8 +27,8 @@ body {
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: #2D3149; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3A3F5C; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.14); }
 
 .recharts-cartesian-axis-tick-value { fill: var(--text-secondary) !important; font-size: 12px; }
-.recharts-cartesian-grid line { stroke: var(--border) !important; }
+.recharts-cartesian-grid line { stroke: rgba(255, 255, 255, 0.05) !important; }
