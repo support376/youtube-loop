@@ -219,19 +219,19 @@ ${principleLines}
 
         {/* ❌ DON'T */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
-          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--accent)]/30 overflow-hidden">
-          <div className="px-5 py-4 bg-[var(--accent-soft)] border-b border-[var(--accent)]/20">
-            <h3 className="font-bold text-[var(--accent)]">❌ 이건 피하세요</h3>
+          className="rounded-2xl bg-[var(--bg-card)] border border-[var(--red)]/30 overflow-hidden">
+          <div className="px-5 py-4 bg-[var(--red-soft)] border-b border-[var(--red)]/20">
+            <h3 className="font-bold text-[var(--red)]">❌ 이건 피하세요</h3>
           </div>
           <div className="p-5 space-y-3">
             {(avoidDetails.length ? avoidDetails : avoid.map(k => ({ keyword: k, views: '', reason: '' }))).map((item, i) => (
               <div key={i} className="p-3 rounded-xl bg-[var(--bg-hover)]">
                 <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-medium">
+                  <span className="px-2.5 py-1 text-xs rounded-full bg-[var(--red)]/15 text-[var(--red)] font-medium">
                     {typeof item === 'string' ? item : item.keyword}
                   </span>
                   {typeof item !== 'string' && item.views && (
-                    <span className="text-xs text-[var(--accent)] font-medium">{item.views}뷰</span>
+                    <span className="text-xs text-[var(--red)] font-medium">{item.views}뷰</span>
                   )}
                 </div>
                 {typeof item !== 'string' && item.reason && (

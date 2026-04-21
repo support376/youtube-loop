@@ -25,7 +25,7 @@ export default function MetricCard({ label, value, delta, prevValue, suffix = ''
       <p className="text-sm text-[var(--text-secondary)] mb-1">{label}</p>
       <p className="text-2xl font-bold tracking-tight">{value}{suffix}</p>
       {delta !== undefined && delta !== 0 && (
-        <p className={`text-sm mt-1 ${isPositive ? 'text-[var(--green)]' : 'text-[var(--accent)]'}`}>
+        <p className={`text-sm mt-1 ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
           {isPositive ? '▲' : '▼'} {Math.abs(delta).toLocaleString()}
           {pct !== null && ` (${pct > 0 ? '+' : ''}${pct}%)`}
         </p>

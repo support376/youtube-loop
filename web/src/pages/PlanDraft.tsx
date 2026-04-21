@@ -81,13 +81,13 @@ const STATUS_STYLES: Record<CardStatus, string> = {
   초안: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
   승인: 'bg-[var(--green-soft)] text-[var(--green)]',
   수정중: 'bg-amber-500/15 text-amber-400',
-  보류: 'bg-blue-500/15 text-blue-400',
-  폐기: 'bg-[var(--accent-soft)] text-[var(--accent)]',
+  보류: 'bg-slate-500/15 text-slate-400',
+  폐기: 'bg-[var(--red-soft)] text-[var(--red)]',
 }
 
 const STYLE_COLORS: Record<string, string> = {
   경고형: 'bg-[var(--accent)]/15 text-[var(--accent)]',
-  질문형: 'bg-blue-500/15 text-blue-400',
+  질문형: 'bg-violet-500/15 text-violet-400',
   손해방지형: 'bg-amber-500/15 text-amber-400',
   사실단언형: 'bg-[var(--green)]/15 text-[var(--green)]',
 }
@@ -303,8 +303,8 @@ export default function PlanDraft() {
       <WeightSliders weights={weights} onChange={setWeights} />
 
       {error && (
-        <div className="rounded-xl bg-[var(--accent-soft)] border border-[var(--accent)]/30 p-4 text-sm">
-          <p className="font-semibold text-[var(--accent)]">생성 실패</p>
+        <div className="rounded-xl bg-[var(--red-soft)] border border-[var(--red)]/30 p-4 text-sm">
+          <p className="font-semibold text-[var(--red)]">생성 실패</p>
           <p className="text-[var(--text-secondary)] mt-1">{error}</p>
         </div>
       )}
@@ -543,10 +543,10 @@ function LongCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className="rounded-2xl bg-[var(--bg-card)] border border-blue-500/20 p-5 flex flex-col gap-3"
+      className="rounded-2xl bg-[var(--bg-card)] border border-slate-500/20 p-5 flex flex-col gap-3"
     >
       <div className="flex items-center gap-2">
-        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400">
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-400">
           LONG
         </span>
         <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[card.status]}`}>
@@ -681,8 +681,8 @@ function ActionBtn({
   const colorMap: Record<typeof color, string> = {
     green: active ? 'bg-[var(--green)] text-white' : 'hover:bg-[var(--green-soft)] hover:text-[var(--green)]',
     amber: active ? 'bg-amber-500 text-white' : 'hover:bg-amber-500/15 hover:text-amber-400',
-    blue: active ? 'bg-blue-500 text-white' : 'hover:bg-blue-500/15 hover:text-blue-400',
-    red: active ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]',
+    blue: active ? 'bg-slate-500 text-white' : 'hover:bg-slate-500/15 hover:text-slate-400',
+    red: active ? 'bg-[var(--red)] text-white' : 'hover:bg-[var(--red-soft)] hover:text-[var(--red)]',
   }
   return (
     <button

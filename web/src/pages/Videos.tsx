@@ -109,7 +109,7 @@ export default function Videos() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v, i) => {
             const rank = rankMap.get(v.id) || 0
-            const borderColor = rank === 1 ? 'border-[#ff4b4b]' : rank === 2 ? 'border-[#ff8a3b]' : rank === 3 ? 'border-[#ffc53b]' : 'border-[var(--border)]'
+            const borderColor = rank === 1 ? 'border-[#F59E0B]' : rank === 2 ? 'border-[#94A3B8]' : rank === 3 ? 'border-[#D97706]' : 'border-[var(--border)]'
             const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : ''
 
             return (
@@ -136,7 +136,7 @@ export default function Videos() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                      v.video_type === 'short' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-blue-500/15 text-blue-400'
+                      v.video_type === 'short' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-slate-500/15 text-slate-400'
                     }`}>
                       {v.video_type === 'short' ? 'SHORT' : 'LONG'}
                     </span>

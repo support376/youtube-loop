@@ -153,7 +153,7 @@ export default function DataManagement() {
             className="flex-1 bg-transparent outline-none text-sm"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3 items-center">
           <FilterGroup
             label="타입"
             value={typeFilter}
@@ -164,12 +164,14 @@ export default function DataManagement() {
               ['long', '롱폼'],
             ]}
           />
+          <div className="w-px h-5 bg-[var(--border)]" aria-hidden />
           <FilterGroup
             label="편집자"
             value={editorFilter}
             onChange={setEditorFilter}
             options={editorNames.map(n => [n, n === 'all' ? '전체' : n])}
           />
+          <div className="w-px h-5 bg-[var(--border)]" aria-hidden />
           <FilterGroup
             label="기간"
             value={dateFilter}
@@ -226,7 +228,7 @@ export default function DataManagement() {
                           className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
                             r.video_type === 'short'
                               ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                              : 'bg-blue-500/15 text-blue-400'
+                              : 'bg-slate-500/15 text-slate-400'
                           }`}
                         >
                           {r.video_type === 'short' ? 'SHORT' : 'LONG'}
@@ -585,7 +587,7 @@ function EditorPanel({
               <p className="text-2xl font-bold tabular-nums">{recentAvg.toLocaleString()}</p>
               <p className="text-xs text-[var(--text-secondary)] mt-1">
                 전체 평균 대비{' '}
-                <span className={recentAvg >= avgViews ? 'text-[var(--green)]' : 'text-[var(--accent)]'}>
+                <span className={recentAvg >= avgViews ? 'text-[var(--green)]' : 'text-[var(--red)]'}>
                   {avgViews ? `${Math.round(((recentAvg - avgViews) / avgViews) * 100)}%` : '—'}
                 </span>
               </p>
@@ -633,7 +635,7 @@ function StatBox({
     accent === 'accent'
       ? 'bg-[var(--accent)]/10 border-[var(--accent)]/20'
       : accent === 'blue'
-      ? 'bg-blue-500/10 border-blue-500/20'
+      ? 'bg-slate-500/10 border-slate-500/20'
       : 'bg-[var(--bg-card)] border-[var(--border)]'
   return (
     <div className={`rounded-xl border p-3 ${bg}`}>

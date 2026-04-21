@@ -170,7 +170,7 @@ export default function Insights() {
           <h3 className="text-lg font-semibold mb-4">🏆 TOP 3 영상</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {topVideos.slice(0, 3).map((v, i) => {
-              const borderColor = i === 0 ? 'border-[#ff4b4b]' : i === 1 ? 'border-[#ff8a3b]' : 'border-[#ffc53b]'
+              const borderColor = i === 0 ? 'border-[#F59E0B]' : i === 1 ? 'border-[#94A3B8]' : 'border-[#D97706]'
               const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'
               return (
                 <motion.div key={v.id}
