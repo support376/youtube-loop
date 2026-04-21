@@ -112,6 +112,7 @@ type Toast = { type: 'success' | 'error' | 'info'; message: string }
 export default function PlanDraft() {
   const [cards, setCards] = useState<PlanningCardRow[]>([])
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS)
+  const [activePresetName, setActivePresetName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
@@ -139,12 +140,29 @@ export default function PlanDraft() {
   const loadWeights = async () => {
     const { data } = await supabase
       .from('score_weights')
-      .select('weights')
+      .select('preset_name, weights')
       .eq('is_active', true)
       .limit(1)
-    const raw = data?.[0]?.weights as Partial<Weights> | undefined
-    if (raw) {
-      setWeights({ ...DEFAULT_WEIGHTS, ...raw })
+    const row = data?.[0] as { preset_name: string | null; weights: Partial<Weights> } | undefined
+    if (row?.weights) {
+      setWeights({ ...DEFAULT_WEIGHTS, ...row.weights })
+      setActivePresetName(row.preset_name ?? null)
+    }
+  }
+
+  // 프리셋 클릭 시 DB의 is_active 플래그를 해당 프리셋으로 이동. 슬라이더 드래그(presetName=null)는 세션 로컬에만 반영.
+  const handleWeightsChange = async (next: Weights, presetName: string | null) => {
+    setWeights(next)
+    setActivePresetName(presetName)
+    if (presetName) {
+      await supabase
+        .from('score_weights')
+        .update({ is_active: false })
+        .neq('preset_name', '__none__')
+      await supabase
+        .from('score_weights')
+        .update({ is_active: true })
+        .eq('preset_name', presetName)
     }
   }
 
@@ -337,7 +355,11 @@ export default function PlanDraft() {
       </AnimatePresence>
 
       {/* 가중치 슬라이더 */}
-      <WeightSliders weights={weights} onChange={setWeights} />
+      <WeightSliders
+        weights={weights}
+        activePresetName={activePresetName}
+        onChange={handleWeightsChange}
+      />
 
       {loading ? (
         <LoadingSkeleton />

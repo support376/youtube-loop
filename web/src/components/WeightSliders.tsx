@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Sliders } from 'lucide-react'
 
@@ -24,6 +24,11 @@ export const DEFAULT_WEIGHTS: Weights = {
 }
 
 const PRESETS: { id: string; name: string; weights: Weights }[] = [
+  {
+    id: 'default',
+    name: '기본',
+    weights: DEFAULT_WEIGHTS,
+  },
   {
     id: 'viral',
     name: '바이럴 모드',
@@ -70,32 +75,58 @@ function equalWeights(a: Weights, b: Weights): boolean {
 interface Props {
   initial?: Weights
   weights?: Weights
-  onChange?: (w: Weights) => void
+  activePresetName?: string | null
+  onChange?: (w: Weights, presetName: string | null) => void
 }
 
-export default function WeightSliders({ initial = DEFAULT_WEIGHTS, weights: controlled, onChange }: Props) {
+export default function WeightSliders({
+  initial = DEFAULT_WEIGHTS,
+  weights: controlled,
+  activePresetName,
+  onChange,
+}: Props) {
   const [internal, setInternal] = useState<Weights>(initial)
   const [open, setOpen] = useState(true)
+  const lastCustomRef = useRef<Weights | null>(null)
 
   const weights = controlled ?? internal
-  const setWeights = (next: Weights) => {
-    if (controlled === undefined) setInternal(next)
-    onChange?.(next)
-  }
 
-  const activePreset = PRESETS.find(p => equalWeights(p.weights, weights))?.id ?? 'custom'
+  // 부모가 activePresetName을 명시하면 그걸 우선 사용, 아니면 weights 비교로 추론
+  const derived = PRESETS.find(p => equalWeights(p.weights, weights))
+  const activeId = activePresetName !== undefined && activePresetName !== null
+    ? PRESETS.find(p => p.name === activePresetName)?.id ?? 'custom'
+    : derived?.id ?? 'custom'
+
+  // 최초 진입 시 초기 weights가 커스텀이면 기억
+  useEffect(() => {
+    if (!derived && lastCustomRef.current === null) {
+      lastCustomRef.current = weights
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const total = WEIGHT_KEYS.reduce((a, k) => a + weights[k], 0)
 
+  const emit = (next: Weights, presetName: string | null) => {
+    if (controlled === undefined) setInternal(next)
+    if (presetName === null) lastCustomRef.current = next
+    onChange?.(next, presetName)
+  }
+
   const applyPreset = (id: string) => {
-    if (id === 'custom') return
+    if (id === 'custom') {
+      const restore = lastCustomRef.current ?? weights
+      emit(restore, null)
+      return
+    }
     const preset = PRESETS.find(p => p.id === id)
     if (!preset) return
-    setWeights(preset.weights)
+    emit(preset.weights, preset.name)
   }
 
   const handleSlide = (key: WeightKey, v: number) => {
     const next = rebalance(weights, key, v)
-    setWeights(next)
+    emit(next, null)
   }
 
   return (
@@ -108,7 +139,7 @@ export default function WeightSliders({ initial = DEFAULT_WEIGHTS, weights: cont
           <Sliders size={16} className="text-[var(--accent)]" />
           <span className="font-semibold text-sm">스코어 가중치</span>
           <span className="text-xs text-[var(--text-secondary)]">
-            {PRESETS.find(p => p.id === activePreset)?.name || '커스텀'} · 합계 {total}%
+            {PRESETS.find(p => p.id === activeId)?.name || '커스텀'} · 합계 {total}%
           </span>
         </div>
         <ChevronDown
@@ -134,7 +165,7 @@ export default function WeightSliders({ initial = DEFAULT_WEIGHTS, weights: cont
                     key={p.id}
                     onClick={() => applyPreset(p.id)}
                     className={`px-4 py-1.5 text-xs font-medium rounded-full transition ${
-                      activePreset === p.id
+                      activeId === p.id
                         ? 'bg-[var(--accent)] text-white'
                         : 'bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
