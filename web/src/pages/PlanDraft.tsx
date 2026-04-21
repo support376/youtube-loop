@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Shield,
   CheckCircle2,
+  FileDown,
 } from 'lucide-react'
+import PdfTemplate from '../components/PdfTemplate'
 import { supabase } from '../lib/supabase'
 import WeightSliders, {
   DEFAULT_WEIGHTS,
@@ -115,8 +117,10 @@ export default function PlanDraft() {
   const [activePresetName, setActivePresetName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pdfRootRef = useRef<HTMLDivElement>(null)
 
   const showToast = (t: Toast, durationMs = 4000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -304,6 +308,29 @@ export default function PlanDraft() {
     .sort((a, b) => b.computed_total - a.computed_total)
   const longs = computedCards.filter(c => c.format === 'long')
 
+  const approvedShorts = computedCards.filter(c => c.format !== 'long' && c.status === '승인')
+  const approvedLongs = computedCards.filter(c => c.format === 'long' && c.status === '승인')
+
+  const handleExportPdf = async () => {
+    if (approvedShorts.length === 0 || exporting) return
+    setExporting(true)
+    try {
+      await new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      )
+      if (!pdfRootRef.current) throw new Error('PDF 템플릿 미준비')
+      const { exportPagesToPdf, formatDatePdf } = await import('../lib/exportPdf')
+      const filename = `${formatDatePdf(new Date())}_쇼츠카드.pdf`
+      await exportPagesToPdf(pdfRootRef.current, filename)
+      showToast({ type: 'success', message: 'PDF 다운로드 시작됨' })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      showToast({ type: 'error', message: `PDF 생성 실패: ${msg}` }, 6000)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       {/* 헤더 + 생성 버튼 */}
@@ -315,24 +342,57 @@ export default function PlanDraft() {
             {longs.length}
           </p>
         </div>
-        <button
-          onClick={generate}
-          disabled={generating}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition disabled:opacity-60"
-        >
-          {generating ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              기획안 생성 중... (30~60초)
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} />
-              기획안 생성
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportPdf}
+            disabled={approvedShorts.length === 0 || exporting}
+            title={approvedShorts.length === 0 ? '승인된 카드가 없습니다' : 'PDF 다운로드'}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] text-sm font-medium hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)] transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {exporting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                PDF 생성 중...
+              </>
+            ) : (
+              <>
+                <FileDown size={16} />
+                PDF 내보내기 ({approvedShorts.length})
+              </>
+            )}
+          </button>
+          <button
+            onClick={generate}
+            disabled={generating}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition disabled:opacity-60"
+          >
+            {generating ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                기획안 생성 중... (30~60초)
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} />
+                기획안 생성
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* PDF 템플릿 (오프스크린 렌더 — export 시에만 마운트) */}
+      {exporting && (
+        <div style={{ position: 'fixed', left: -99999, top: 0, pointerEvents: 'none' }} aria-hidden>
+          <div ref={pdfRootRef}>
+            <PdfTemplate
+              cards={approvedShorts}
+              longCards={approvedLongs}
+              date={new Date()}
+            />
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {toast && (
