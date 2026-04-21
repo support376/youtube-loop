@@ -140,7 +140,7 @@ export default function DataManagement() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">데이터 관리</h2>
+          <h1 className="text-[28px] font-bold tracking-tight leading-tight">데이터 관리</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             전체 영상 {videos.length}개 · 표시 {sorted.length}개
           </p>
@@ -148,14 +148,14 @@ export default function DataManagement() {
       </div>
 
       {/* 필터 바 */}
-      <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-4 space-y-3">
-        <div className="flex items-center gap-2 bg-[var(--bg-hover)] rounded-xl px-3 py-2">
-          <Search size={16} className="text-[var(--text-secondary)]" />
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-[10px] px-4 py-3 focus-within:border-[var(--accent)] transition-colors">
+          <Search size={16} className="text-[var(--text-muted)]" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="제목 검색"
-            className="flex-1 bg-transparent outline-none text-sm"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[var(--text-muted)]"
           />
         </div>
         <div className="flex flex-wrap gap-3 items-center">
@@ -194,7 +194,7 @@ export default function DataManagement() {
       <div className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs text-[var(--text-secondary)] border-b border-[var(--border)] bg-[rgba(0,0,0,0.2)]">
+            <thead className="text-[12px] text-[var(--text-muted)] uppercase tracking-[0.05em] bg-white/[0.02] border-b border-[var(--border-card)]">
               <tr>
                 <Th label="제목" sortKey="title" current={sortKey} dir={sortDir} onSort={toggleSort} />
                 <Th label="타입" center />
@@ -203,7 +203,7 @@ export default function DataManagement() {
                 <Th label="조회수" sortKey="views" current={sortKey} dir={sortDir} onSort={toggleSort} right />
                 <Th label="좋아요" sortKey="likes" current={sortKey} dir={sortDir} onSort={toggleSort} right />
                 <Th label="댓글" sortKey="comments" current={sortKey} dir={sortDir} onSort={toggleSort} right />
-                <th className="text-center py-3 px-3 w-12">링크</th>
+                <th className="text-center py-3.5 px-4 w-12">링크</th>
               </tr>
             </thead>
             <tbody>
@@ -213,11 +213,11 @@ export default function DataManagement() {
                   <Fragment key={r.id}>
                     <tr
                       onClick={() => setExpandedId(expanded ? null : r.id)}
-                      className={`border-b border-[var(--border)] cursor-pointer hover:bg-[var(--accent-glow)] transition ${
+                      className={`border-b border-white/[0.03] cursor-pointer hover:bg-[var(--accent-glow)] transition ${
                         expanded ? 'bg-[var(--accent-glow)]' : ''
                       }`}
                     >
-                      <td className="py-3 px-3 max-w-md">
+                      <td className="py-3.5 px-4 max-w-md">
                         <div className="flex items-center gap-2">
                           <ChevronDown
                             size={14}
@@ -228,18 +228,18 @@ export default function DataManagement() {
                           <span className="line-clamp-1">{r.title}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
                             r.video_type === 'short'
-                              ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                              : 'bg-slate-500/15 text-slate-400'
+                              ? 'bg-[var(--accent-soft)] text-[var(--accent-light)]'
+                              : 'bg-blue-500/15 text-blue-400'
                           }`}
                         >
                           {r.video_type === 'short' ? 'SHORT' : 'LONG'}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <button
                           onClick={e => {
                             e.stopPropagation()
@@ -250,21 +250,21 @@ export default function DataManagement() {
                           {r.editor_name}
                         </button>
                       </td>
-                      <td className="py-3 px-3 text-right text-[var(--text-secondary)] tabular-nums">
+                      <td className="py-3.5 px-4 text-right text-[var(--text-secondary)] tabular-nums">
                         {fmtDate(r.published_at)}
                       </td>
-                      <td className={`py-3 px-3 text-right tabular-nums ${
+                      <td className={`py-3.5 px-4 text-right tabular-nums ${
                         r.views >= avgViews
                           ? 'text-[var(--text-primary)] font-semibold'
                           : 'text-[var(--text-secondary)]'
                       }`}>{r.views.toLocaleString()}</td>
-                      <td className="py-3 px-3 text-right tabular-nums text-[var(--text-secondary)]">
+                      <td className="py-3.5 px-4 text-right tabular-nums text-[var(--text-secondary)]">
                         {r.likes.toLocaleString()}
                       </td>
-                      <td className="py-3 px-3 text-right tabular-nums text-[var(--text-secondary)]">
+                      <td className="py-3.5 px-4 text-right tabular-nums text-[var(--text-secondary)]">
                         {r.comments.toLocaleString()}
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <a
                           href={`https://www.youtube.com/watch?v=${r.id}`}
                           target="_blank"
@@ -333,7 +333,7 @@ function Th({
   const align = right ? 'text-right' : center ? 'text-center' : 'text-left'
   const active = sortKey && current === sortKey
   return (
-    <th className={`py-3 px-3 ${align} font-medium`}>
+    <th className={`py-3.5 px-4 ${align} font-medium`}>
       {sortKey && onSort ? (
         <button
           onClick={() => onSort(sortKey)}
@@ -366,15 +366,15 @@ function FilterGroup({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-xs text-[var(--text-secondary)] mr-1">{label}</span>
+      <span className="text-[11px] uppercase tracking-wider text-[var(--text-muted)] mr-2 font-semibold">{label}</span>
       {options.map(([val, text]) => (
         <button
           key={val}
           onClick={() => onChange(val)}
-          className={`px-3 py-1.5 text-xs rounded-full transition border ${
+          className={`px-3.5 py-1.5 text-[13px] rounded-lg transition border ${
             value === val
               ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
-              : 'bg-transparent border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)]'
+              : 'bg-transparent border-[var(--border-card)] text-[var(--text-secondary)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)]'
           }`}
         >
           {text}
@@ -414,22 +414,30 @@ function RelationView({ row, stats }: { row: Row; stats: VideoStats[] }) {
               <AreaChart data={series} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
                   tickFormatter={v => `${v}일`}
+                  axisLine={false}
+                  tickLine={false}
                 />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)} />
+                <YAxis
+                  tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                  tickFormatter={v => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip
                   contentStyle={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
+                    background: '#1E2030',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: 8,
-                    fontSize: 12,
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
                   }}
                   formatter={(v) => [Number(v).toLocaleString(), '조회수']}
                   labelFormatter={d => `${d}일차`}
@@ -440,7 +448,7 @@ function RelationView({ row, stats }: { row: Row; stats: VideoStats[] }) {
                   stroke="var(--accent)"
                   strokeWidth={2}
                   fill="url(#accentFill)"
-                  dot={{ r: 2, fill: 'var(--accent)' }}
+                  dot={{ r: 5, fill: 'var(--accent)', stroke: 'var(--bg-card)', strokeWidth: 3 }}
                   animationDuration={800}
                 />
               </AreaChart>

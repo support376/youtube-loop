@@ -46,7 +46,7 @@ export default function Agents() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">에이전트</h2>
+        <h1 className="text-[28px] font-bold tracking-tight leading-tight">에이전트</h1>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
           향후 자동화를 담당할 에이전트 구성. 아직 비활성 상태입니다.
         </p>

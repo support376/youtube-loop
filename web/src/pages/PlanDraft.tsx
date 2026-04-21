@@ -86,10 +86,10 @@ const STATUS_STYLES: Record<CardStatus, string> = {
 }
 
 const STYLE_COLORS: Record<string, string> = {
-  경고형: 'bg-[var(--accent)]/15 text-[var(--accent)]',
-  질문형: 'bg-fuchsia-500/15 text-fuchsia-400',
-  손해방지형: 'bg-amber-500/15 text-amber-400',
-  사실단언형: 'bg-[var(--green)]/15 text-[var(--green)]',
+  경고형: 'bg-[rgba(239,68,68,0.15)] text-[#F87171]',
+  질문형: 'bg-[rgba(59,130,246,0.15)] text-[#60A5FA]',
+  손해방지형: 'bg-[rgba(34,197,94,0.15)] text-[#4ADE80]',
+  사실단언형: 'bg-[rgba(251,191,36,0.15)] text-[#FCD34D]',
 }
 
 function today(): string {
@@ -382,8 +382,9 @@ function Card({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: dimmed ? 0.55 : 1, y: 0 }}
+      whileHover={{ y: -4 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-5 flex flex-col gap-4 transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+      className="rounded-2xl bg-[var(--bg-card)] border border-[var(--border-card)] p-6 flex flex-col gap-4 transition-colors hover:border-[var(--border-card-hover)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]"
     >
       {/* 상단: 스타일/태그/상태 */}
       <div className="flex flex-wrap items-center gap-2">
@@ -543,10 +544,10 @@ function LongCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      className="rounded-2xl bg-[var(--bg-card)] border border-slate-500/20 p-5 flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+      className="rounded-2xl bg-[var(--bg-card)] border border-blue-500/20 p-6 flex flex-col gap-3 transition-colors hover:border-[var(--border-card-hover)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]"
     >
       <div className="flex items-center gap-2">
-        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-400">
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400">
           LONG
         </span>
         <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[card.status]}`}>
@@ -679,10 +680,10 @@ function ActionBtn({
   onClick: () => void
 }) {
   const colorMap: Record<typeof color, string> = {
-    green: active ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]',
-    amber: active ? 'bg-amber-500 text-white' : 'hover:bg-amber-500/15 hover:text-amber-400',
-    blue: active ? 'border border-[var(--text-secondary)] text-[var(--text-primary)]' : 'border border-[var(--border)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-    red: active ? 'bg-[var(--text-secondary)] text-[var(--bg-primary)]' : 'hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+    green: active ? 'bg-[var(--accent)] text-white' : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]',
+    amber: active ? 'bg-[var(--accent-soft)] border border-[var(--accent)] text-[var(--accent)]' : 'bg-transparent border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent-soft)]',
+    blue: active ? 'border border-[var(--text-secondary)] text-[var(--text-primary)]' : 'bg-transparent border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+    red: active ? 'bg-[var(--red-soft)] text-[var(--red)]' : 'text-[var(--text-muted)] hover:text-[var(--red)]',
   }
   return (
     <button

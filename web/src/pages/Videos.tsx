@@ -136,7 +136,7 @@ export default function Videos() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                      v.video_type === 'short' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-slate-500/15 text-slate-400'
+                      v.video_type === 'short' ? 'bg-[var(--accent-soft)] text-[var(--accent-light)]' : 'bg-blue-500/15 text-blue-400'
                     }`}>
                       {v.video_type === 'short' ? 'SHORT' : 'LONG'}
                     </span>

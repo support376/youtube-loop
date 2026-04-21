@@ -24,22 +24,15 @@ function NavItem({ tab, onClick }: { tab: NavTab; onClick?: () => void }) {
       to={tab.to}
       onClick={onClick}
       className={({ isActive }) =>
-        `relative flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+        `flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
           isActive
-            ? 'text-[var(--text-primary)] bg-[var(--accent-soft)]'
-            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]/60'
+            ? 'bg-[var(--accent)] text-white'
+            : 'text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]'
         }`
       }
     >
-      {({ isActive }) => (
-        <>
-          {isActive && (
-            <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)]" />
-          )}
-          <Icon size={15} className={isActive ? 'text-[var(--accent)]' : ''} />
-          <span>{tab.label}</span>
-        </>
-      )}
+      <Icon size={20} />
+      <span>{tab.label}</span>
     </NavLink>
   )
 }
@@ -49,16 +42,16 @@ export default function Layout() {
   const closeMobile = () => setMobileOpen(false)
 
   return (
-    <div className="min-h-screen lg:flex bg-[var(--bg-primary)]">
+    <div className="min-h-screen lg:flex bg-[var(--bg-body)]">
       {/* Mobile header */}
-      <header className="lg:hidden sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg-primary)]/85 backdrop-blur-md">
+      <header className="lg:hidden sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg-sidebar)]/90 backdrop-blur-md">
         <div className="px-4 py-3 flex items-center justify-between">
-          <h1 className="text-base font-bold tracking-tight">
-            <span className="text-[var(--accent)]">YouTube</span> Loop
+          <h1 className="text-base font-bold tracking-tight text-[var(--text-primary)]">
+            YouTube Loop
           </h1>
           <button
             onClick={() => setMobileOpen(v => !v)}
-            className="p-2 -mr-2 rounded-md hover:bg-[var(--bg-hover)] transition"
+            className="p-2 -mr-2 rounded-md hover:bg-white/[0.04] transition"
             aria-label="메뉴"
           >
             {mobileOpen ? <X size={18} /> : <Menu size={18} />}
@@ -67,12 +60,12 @@ export default function Layout() {
       </header>
 
       {/* Sidebar — desktop */}
-      <aside className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:w-[220px] lg:flex-shrink-0 lg:flex-col lg:border-r lg:border-[var(--border)]">
-        <div className="px-5 pt-7 pb-6">
-          <h1 className="text-base font-bold tracking-tight leading-none">
-            <span className="text-[var(--accent)]">YouTube</span> Loop
+      <aside className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:w-[240px] lg:flex-shrink-0 lg:flex-col lg:bg-[var(--bg-sidebar)]">
+        <div className="px-6 pt-6 pb-6">
+          <h1 className="text-base font-bold tracking-tight leading-none text-[var(--text-primary)]">
+            YouTube Loop
           </h1>
-          <p className="text-[10px] text-[var(--text-secondary)] mt-2 uppercase tracking-[0.08em]">
+          <p className="text-xs text-[var(--text-muted)] mt-2 uppercase tracking-[0.08em]">
             Circle21 · 양홍수 변호사
           </p>
         </div>
@@ -81,8 +74,8 @@ export default function Layout() {
             <NavItem key={tab.to} tab={tab} />
           ))}
         </nav>
-        <div className="px-5 py-4 border-t border-[var(--border)]">
-          <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.08em]">
+        <div className="px-6 py-4">
+          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-[0.08em]">
             YouTube Loop · v1
           </p>
         </div>
@@ -90,7 +83,7 @@ export default function Layout() {
 
       {/* Mobile overlay menu */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-[53px] bottom-0 z-30 bg-[var(--bg-primary)] overflow-y-auto">
+        <div className="lg:hidden fixed inset-x-0 top-[53px] bottom-0 z-30 bg-[var(--bg-sidebar)] overflow-y-auto">
           <nav className="px-3 py-4 space-y-1">
             {TOP_TABS.map(tab => (
               <NavItem key={tab.to} tab={tab} onClick={closeMobile} />
@@ -100,8 +93,8 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 min-w-0">
-        <div className="max-w-6xl mx-auto px-5 py-7 lg:px-10 lg:py-10">
+      <main className="flex-1 min-w-0 bg-[var(--bg-content)]">
+        <div className="max-w-6xl mx-auto px-5 py-6 lg:px-10 lg:py-8">
           <Outlet />
         </div>
       </main>

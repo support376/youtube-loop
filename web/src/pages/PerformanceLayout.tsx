@@ -10,15 +10,15 @@ const SUBTABS = [
 
 export default function PerformanceLayout() {
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">성과</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1.5">
+    <div>
+      <div className="mb-8">
+        <h1 className="text-[28px] font-bold tracking-tight leading-tight">성과</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">
           업로드된 영상의 조회수·참여율·편집자별 지표를 분석합니다
         </p>
       </div>
 
-      <div className="flex gap-1 items-center overflow-x-auto scrollbar-hide -mx-1 px-1">
+      <div className="flex items-center gap-6 border-b border-[var(--border)] mb-8 overflow-x-auto scrollbar-hide">
         {SUBTABS.map(t => {
           const Icon = t.icon
           return (
@@ -26,14 +26,14 @@ export default function PerformanceLayout() {
               key={t.to}
               to={t.to}
               className={({ isActive }) =>
-                `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                `flex items-center gap-2 pb-3 -mb-px text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   isActive
-                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                    ? 'text-[var(--accent)] border-[var(--accent)]'
+                    : 'text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]'
                 }`
               }
             >
-              <Icon size={13} />
+              <Icon size={14} />
               {t.label}
             </NavLink>
           )
