@@ -2,8 +2,8 @@ name: Daily Crawl (뉴스 + 커뮤니티)
 
 on:
   schedule:
-    # KST 13:40 = UTC 04:40
-    - cron: "40 4 * * *"
+    # KST 08:00 = UTC 23:00 (전날)
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 jobs:
