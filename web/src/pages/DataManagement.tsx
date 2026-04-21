@@ -179,7 +179,7 @@ export default function DataManagement() {
           />
           <FilterGroup
             label="기간"
-            tone="green"
+            tone="lavender"
             value={dateFilter}
             onChange={v => setDateFilter(v as DateFilter)}
             options={[
@@ -354,12 +354,12 @@ function Th({
 }
 
 // ─── 필터 그룹 ───
-type FilterTone = 'purple' | 'blue' | 'green'
+type FilterTone = 'purple' | 'blue' | 'lavender'
 
 const FILTER_TONE: Record<FilterTone, string> = {
   purple: 'bg-[var(--accent)] border-[var(--accent)]',
   blue: 'bg-[#3B82F6] border-[#3B82F6]',
-  green: 'bg-[var(--green)] border-[var(--green)]',
+  lavender: 'bg-[#A78BFA] border-[#A78BFA]',
 }
 
 function FilterGroup({
