@@ -108,25 +108,39 @@ export default function Crawling() {
         throw new Error(err.message || err.error || `HTTP ${resp.status}`)
       }
 
-      showToast({ type: 'info', message: '크롤러 실행됨 · 완료까지 2~3분 걸려요' }, 6000)
+      showToast({ type: 'info', message: '크롤러 실행됨 · 완료까지 3~5분 걸려요' }, 6000)
 
-      // 폴링: 5초 간격 × 최대 36회 (3분)
-      const maxAttempts = 36
+      // 폴링: 5초 간격 × 최대 72회 (6분)
+      // 판정 규칙: 새 데이터 감지 후 카운트가 15초 이상 동일(안정)하면 완료
+      const maxAttempts = 72
+      const stableThreshold = 3 // 3회 연속 동일 = 15초 안정
       let attempts = 0
+      let lastCount = baseline
+      let stableCount = 0
+
       const poll = async () => {
         attempts += 1
         try {
           const current = await countForDate(todayStr)
-          if (current > baseline) {
-            if (date !== todayStr) setDate(todayStr) // effect가 재조회
-            else await fetchForDate(todayStr)
-            showToast({
-              type: 'success',
-              message: `크롤링 완료 · ${current - baseline}건 추가됨`,
-            })
-            setTriggering(false)
-            return
+          if (current > lastCount) {
+            // 계속 증가 중 → 아직 끝 아님, 안정 카운터 리셋
+            lastCount = current
+            stableCount = 0
+          } else if (current > baseline) {
+            // baseline보다는 늘었고, 지난 폴링 대비 변화 없음
+            stableCount += 1
+            if (stableCount >= stableThreshold) {
+              if (date !== todayStr) setDate(todayStr) // effect가 재조회
+              else await fetchForDate(todayStr)
+              showToast({
+                type: 'success',
+                message: `크롤링 완료 · ${current - baseline}건 추가됨`,
+              })
+              setTriggering(false)
+              return
+            }
           }
+          // current === baseline인 경우는 계속 대기
         } catch {
           // 폴링 실패는 무시하고 재시도
         }
