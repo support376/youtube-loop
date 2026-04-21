@@ -742,36 +742,23 @@ def main():
     start_time = datetime.now()
     print(f"=== 커뮤니티 크롤링 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ===")
 
-    # 1) 사이트별 크롤링
-    print("\n[1/4] 에펨코리아...")
-    raw_fm = crawl_fmkorea(15)
+    # GHA 러너 IP로 접근 불가한 사이트는 제외:
+    # - 에펨(HTTP 430), 디시(ConnectTimeout), 인스티즈(403)
+    # crawl_fmkorea/crawl_dcinside 함수는 로컬 실행 대비해 코드에 남겨둠.
 
-    print("[2/4] 디시인사이드...")
-    raw_dc = crawl_dcinside(15)
-
-    print("[3/3] 더쿠...")
+    print("\n[1/1] 더쿠...")
     raw_tq = crawl_theqoo(15)
 
-    # 인스티즈 제거 (403 영구 차단)
-
-    # 2) 사이트별 필터링 & dedup
     print("\n[필터링] 블랙리스트 + 빈 제목 + 유사도 dedup...")
     filter_stats["blacklist"] = 0
     filter_stats["empty_title"] = 0
     filter_stats["similar_dedup"] = 0
 
-    filtered_fm = filter_and_deduplicate(raw_fm)
-    filtered_dc = filter_and_deduplicate(raw_dc)
     filtered_tq = filter_and_deduplicate(raw_tq)
-
-    # 3) 전체 합쳐서 cross-site dedup
-    combined = filtered_fm + filtered_dc + filtered_tq
-    deduped = _dedup_by_similarity(combined)
+    deduped = _dedup_by_similarity(filtered_tq)
 
     articles_by_source = {
-        "에펨": [a for a in deduped if a.get("source") == "에펨"],
-        "디시": [a for a in deduped if a.get("source") == "디시"],
-        "더쿠": [a for a in deduped if a.get("source") == "더쿠"],
+        "더쿠": deduped,
     }
 
     total = sum(len(v) for v in articles_by_source.values())
